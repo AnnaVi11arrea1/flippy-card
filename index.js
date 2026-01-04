@@ -61,3 +61,10 @@ document.getElementById("start").addEventListener("click", function() {
         });
     });
 });
+
+
+// add logic for AI study mode here... need to...
+// allow user to upload a pdf of study material
+// use NLP to extract key terms and concepts
+// generate pairs of tiles based on extracted info
+// implement a way for user to review correct answers after game
