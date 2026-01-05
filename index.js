@@ -1,3 +1,24 @@
+// Tab Navigation
+document.addEventListener("DOMContentLoaded", () => {
+    const tabButtons = document.querySelectorAll(".tab-btn");
+    const tabContents = document.querySelectorAll(".tab-content");
+
+    tabButtons.forEach(button => {
+        button.addEventListener("click", () => {
+            const tabName = button.getAttribute("data-tab");
+
+            // Remove active class from all buttons and contents
+            tabButtons.forEach(btn => btn.classList.remove("active"));
+            tabContents.forEach(content => content.classList.remove("active"));
+
+            // Add active class to clicked button and corresponding content
+            button.classList.add("active");
+            document.getElementById(tabName === "game" ? "game" : "flashcard-section").classList.add("active");
+        });
+    });
+});
+
+// Memory Game Code
 const images = [
     "url('images/duck.jpeg')",
     "url('images/lexicon.jpeg')", 
@@ -61,10 +82,3 @@ document.getElementById("start").addEventListener("click", function() {
         });
     });
 });
-
-
-// add logic for AI study mode here... need to...
-// allow user to upload a pdf of study material
-// use NLP to extract key terms and concepts
-// generate pairs of tiles based on extracted info
-// implement a way for user to review correct answers after game

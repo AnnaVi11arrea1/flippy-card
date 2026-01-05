@@ -1,0 +1,24 @@
+{
+  "name": "flippy-tiles",
+  "version": "1.0.0",
+  "description": "A memory game application with flashcard generation using ChatGPT.",
+  "homepage": "https://github.com/AnnaVi11arrea1/Memory-Game#readme",
+  "bugs": {
+    "url": "https://github.com/AnnaVi11arrea1/Memory-Game/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AnnaVi11arrea1/Memory-Game.git"
+  },
+  "license": "ISC",
+  "author": "Anna Villarreal",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "ollama": "^0.6.3"
+  }
+}
