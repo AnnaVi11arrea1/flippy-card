@@ -102,13 +102,12 @@ const MemoryGame = () => {
     return (
         <div className="memory-game-container">
             <div className="game-header">
-                <h2>Memory Game</h2>
-                <div className="score-display">Score: {score}</div>
+                {gameStarted && <div className="score-display">Score: {score}</div>}
             </div>
 
             {!gameStarted ? (
                 <button className="start-btn" onClick={startGame}>
-                    Start Game
+                    Play Demo Game
                 </button>
             ) : (
                 <>

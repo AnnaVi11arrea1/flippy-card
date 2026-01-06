@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import './FlashcardSystem.css';
 import ollama from 'ollama';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
@@ -6,6 +6,9 @@ import workerSrc from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
 // Point pdf.js at the correct worker
 GlobalWorkerOptions.workerSrc = workerSrc;
+
+// Radio button options for flashcard count
+const FLASHCARD_OPTIONS = [2, 4, 6, 8, 10, 12];
 
 
 const FlashcardSystem = () => {
@@ -16,9 +19,23 @@ const FlashcardSystem = () => {
     const [score, setScore] = useState(0);
     const [totalReviewed, setTotalReviewed] = useState(0);
     const [pdfText, setPdfText] = useState('');
-    const [numCards, setNumCards] = useState(5);
+    const [numCards, setNumCards] = useState(4);
     const [isGenerating, setIsGenerating] = useState(false);
     const [message, setMessage] = useState({ text: '', type: '' });
+
+    // Test state
+    const [test, setTest] = useState([]);
+    const [currentQuestion, setCurrentQuestion] = useState(0);
+    const [selectedAnswers, setSelectedAnswers] = useState({});
+    const [isCreatingTest, setIsCreatingTest] = useState(false);
+
+    // Matching game state
+    const [matchingTiles, setMatchingTiles] = useState([]);
+    const [flippedTiles, setFlippedTiles] = useState([]);
+    const [matchingScore, setMatchingScore] = useState(0);
+    const [isCheckingMatch, setIsCheckingMatch] = useState(false);
+    const [matchingGameWon, setMatchingGameWon] = useState(false);
+    const [showMatchingGame, setShowMatchingGame] = useState(false);
 
     // Show message notification
     const showMessage = useCallback((text, type) => {
@@ -94,7 +111,7 @@ const FlashcardSystem = () => {
 
                 console.log('Ollama response:', response);
                 const content = response.response.trim();
-                
+
                 // Extract JSON from response
                 const jsonMatch = content.match(/\[[\s\S]*\]/);
                 if (!jsonMatch) {
@@ -154,7 +171,7 @@ const FlashcardSystem = () => {
     }, [nextFlashcard]);
 
     // Toggle review mode
-    const toggleReviewMode = useCallback(() => {
+    const toggleReviewMode = () => {
         if (!reviewMode) {
             setScore(0);
             setTotalReviewed(0);
@@ -162,7 +179,7 @@ const FlashcardSystem = () => {
             setIsFlipped(false);
         }
         setReviewMode(prev => !prev);
-    }, [reviewMode]);
+    };
 
     // Export flashcards
     const exportFlashcards = useCallback(() => {
@@ -199,8 +216,202 @@ const FlashcardSystem = () => {
         reader.readAsText(file);
     }, [showMessage]);
 
+    // Handle answer selection
+    const handleAnswerSelect = useCallback((answer) => {
+        const currentQ = test[currentQuestion];
+        const isCorrect = answer === currentQ.correctAnswer;
+
+        setSelectedAnswers(prev => ({
+            ...prev,
+            [currentQuestion]: answer
+        }));
+
+        if (isCorrect) {
+            setScore(prev => prev + 1);
+        }
+
+        // Auto move to next question after 1 second
+        setTimeout(() => {
+            if (currentQuestion < test.length - 1) {
+                setCurrentQuestion(prev => prev + 1);
+            }
+        }, 1000);
+    }, [currentQuestion, test]);
+
+    const handleClearTest = useCallback(() => {
+        setTest([]);
+        setCurrentQuestion(0);
+        setSelectedAnswers({});
+        setScore(0);
+    }, []);
+
+    // Start matching game
+    const startMatchingGame = useCallback(() => {
+        if (flashcards.length < numCards) {
+            showMessage(`Generate at least ${numCards} flashcards first!`, 'error');
+            return;
+        }
+
+        // Use the selected number of flashcards
+        const cardsToUse = flashcards.slice(0, numCards);
+        
+        // Create tiles: questions and answers as separate tiles
+        const tiles = [];
+        cardsToUse.forEach((card, idx) => {
+            tiles.push({
+                id: `q-${idx}`,
+                content: card.question,
+                matchId: idx,
+                type: 'question',
+                isFlipped: false,
+                isMatched: false
+            });
+            tiles.push({
+                id: `a-${idx}`,
+                content: card.answer,
+                matchId: idx,
+                type: 'answer',
+                isFlipped: false,
+                isMatched: false
+            });
+        });
+
+        // Shuffle tiles
+        const shuffled = tiles.sort(() => Math.random() - 0.5);
+        
+        setMatchingTiles(shuffled);
+        setFlippedTiles([]);
+        setMatchingScore(0);
+        setMatchingGameWon(false);
+        setShowMatchingGame(true);
+    }, [flashcards, numCards, showMessage]);
+
+    // Handle matching tile click
+    const handleMatchingTileClick = useCallback((tileId) => {
+        if (isCheckingMatch || flippedTiles.length >= 2) return;
+        
+        const tile = matchingTiles.find(t => t.id === tileId);
+        if (tile.isFlipped || tile.isMatched) return;
+
+        // Flip the tile
+        const updatedTiles = matchingTiles.map(t => 
+            t.id === tileId ? { ...t, isFlipped: true } : t
+        );
+        setMatchingTiles(updatedTiles);
+        
+        const newFlippedTiles = [...flippedTiles, tileId];
+        setFlippedTiles(newFlippedTiles);
+    }, [isCheckingMatch, flippedTiles, matchingTiles]);
+
+    // Check for matches when two tiles are flipped
+    useEffect(() => {
+        if (flippedTiles.length === 2) {
+            setIsCheckingMatch(true);
+            
+            const [tile1Id, tile2Id] = flippedTiles;
+            const tile1 = matchingTiles.find(t => t.id === tile1Id);
+            const tile2 = matchingTiles.find(t => t.id === tile2Id);
+
+            if (tile1.matchId === tile2.matchId) {
+                // Match found
+                setMatchingScore(prev => prev + 1);
+                const updatedTiles = matchingTiles.map(t => 
+                    (t.id === tile1Id || t.id === tile2Id) 
+                        ? { ...t, isMatched: true } 
+                        : t
+                );
+                setMatchingTiles(updatedTiles);
+                setFlippedTiles([]);
+                setIsCheckingMatch(false);
+
+                // Check for win
+                if (updatedTiles.every(t => t.isMatched)) {
+                    setTimeout(() => {
+                        setMatchingGameWon(true);
+                    }, 500);
+                }
+            } else {
+                // No match - flip back after delay
+                setTimeout(() => {
+                    const updatedTiles = matchingTiles.map(t => 
+                        (t.id === tile1Id || t.id === tile2Id) 
+                            ? { ...t, isFlipped: false } 
+                            : t
+                    );
+                    setMatchingTiles(updatedTiles);
+                    setFlippedTiles([]);
+                    setIsCheckingMatch(false);
+                }, 1000);
+            }
+        }
+    }, [flippedTiles, matchingTiles]);
+
+    const handleExitMatchingGame = useCallback(() => {
+        setShowMatchingGame(false);
+        setMatchingTiles([]);
+        setFlippedTiles([]);
+        setMatchingScore(0);
+        setMatchingGameWon(false);
+    }, []);
+
     const currentFlashcard = flashcards[currentIndex];
     const percentage = totalReviewed > 0 ? Math.round((score / totalReviewed) * 100) : 0;
+
+    // Generate practice test
+    const generateTest = useCallback(async () => {
+        const textToAnalyze = pdfText.trim();
+
+        if (!textToAnalyze) {
+            showMessage('Please upload a PDF or enter text first.', 'error');
+            return;
+        }
+
+        setIsCreatingTest(true);
+        showMessage('Generating test...', 'info');
+
+        const prompt = `You are an expert educator. Based on the following text, generate exactly 10 multiple choice questions with exactly 4 possible answers each. Only one answer is correct.
+        
+        Format your response as a valid JSON array with no additional text, like this:
+        [
+            {"question": "What is X?", "answers": ["X is correct", "Wrong answer 1", "Wrong answer 2", "Wrong answer 3"], "correctAnswer": "X is correct"},
+            {"question": "How does Y work?", "answers": ["Y works correctly", "Wrong answer 1", "Wrong answer 2", "Wrong answer 3"], "correctAnswer": "Y works correctly"}
+        ]
+        
+        Text to analyze:
+        ${textToAnalyze.substring(0, 2000)}`;
+
+        setTimeout(async () => {
+            try {
+                const response = await ollama.generate({
+                    model: 'mistral',
+                    prompt: prompt,
+                    stream: false,
+                });
+
+                console.log('Test Ollama response:', response);
+                const content = response.response.trim();
+
+                // Extract JSON from response
+                const jsonMatch = content.match(/\[[\s\S]*\]/);
+                if (!jsonMatch) {
+                    throw new Error('Invalid response format - could not extract JSON from Ollama response');
+                }
+
+                const parsedTest = JSON.parse(jsonMatch[0]);
+                setTest(parsedTest);
+                setCurrentQuestion(0);
+                setSelectedAnswers({});
+                setScore(0);
+
+                showMessage(`Generated test with ${parsedTest.length} questions!`, 'success');
+            } catch (error) {
+                console.error('Test generation error:', error);
+                showMessage(`Error: ${error.message}`, 'error');
+            } finally {
+                setIsCreatingTest(false);
+            }
+        }, 10000);
+    }, [pdfText, showMessage]);
 
     return (
         <div className="flashcard-system">
@@ -210,50 +421,141 @@ const FlashcardSystem = () => {
                 </div>
             )}
 
-            <div className="flashcard-setup">
-                <h2>Flashcard Generator</h2>
-
-                <div className="input-group">
-                    <label htmlFor="pdf-upload">Upload PDF or Text:</label>
-                    <input
-                        type="file"
-                        id="pdf-upload"
-                        accept=".pdf,.txt"
-                        onChange={handlePdfUpload}
-                    />
+            {test.length > 0 ? (
+                <div className="test-container">
+                    <div className="test-header">
+                        <h2>Practice Test</h2>
+                        <button className="exit-test-btn" onClick={handleClearTest}>
+                            ← Back to Main
+                        </button>
+                    </div>
+                    <div className="question-section">
+                        <div className="question-count">
+                            Question {currentQuestion + 1}/{test.length}
+                        </div>
+                        <div className="question-text">
+                            {test[currentQuestion].question}
+                        </div>
+                    </div>
+                    <div className="answer-section">
+                        {test[currentQuestion].answers.map((answer, index) => (
+                            <button
+                                key={index}
+                                className={`answer-btn ${selectedAnswers[currentQuestion] === answer ? 'selected' : ''} ${selectedAnswers[currentQuestion] && answer === test[currentQuestion].correctAnswer ? 'correct' : ''
+                                    }`}
+                                onClick={() => handleAnswerSelect(answer)}
+                                disabled={selectedAnswers[currentQuestion] !== undefined}
+                            >
+                                {answer}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="test-results">
+                        Score: {score}/{test.length}
+                    </div>
+                    {currentQuestion === test.length - 1 && selectedAnswers[currentQuestion] !== undefined && (
+                        <button className="clear-test-btn" onClick={handleClearTest}>
+                            Take Another Test
+                        </button>
+                    )}
                 </div>
+            ) : showMatchingGame ? (
+                <div className="matching-game-container">
+                    <div className="game-header">
+                        <h2>Matching Game</h2>
+                        <button className="exit-game-btn" onClick={handleExitMatchingGame}>
+                            ← Back to Main
+                        </button>
+                    </div>
+                    <div className="score-display">Matches: {matchingScore}/{matchingTiles.length / 2}</div>
+                    
+                    <div className="tiles-grid">
+                        {matchingTiles.map(tile => (
+                            <div
+                                key={tile.id}
+                                className={`tile ${tile.type} ${tile.isFlipped || tile.isMatched ? 'flipped' : ''}`}
+                                onClick={() => handleMatchingTileClick(tile.id)}
+                            >
+                                <div className="tile-front">?</div>
+                                <div className="tile-back">
+                                    {tile.content}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
 
-                <div className="input-group">
-                    <label htmlFor="pdf-text">Or paste text:</label>
-                    <textarea
-                        id="pdf-text"
-                        value={pdfText}
-                        onChange={(e) => setPdfText(e.target.value)}
-                        placeholder="Paste your text here..."
-                        rows="6"
-                    />
+                    {matchingGameWon && (
+                        <div className="game-over">
+                            <h3>You Win! 🎉</h3>
+                            <button className="reset-btn" onClick={startMatchingGame}>
+                                Play Again
+                            </button>
+                            <button className="exit-btn" onClick={handleExitMatchingGame}>
+                                Back to Flashcards
+                            </button>
+                        </div>
+                    )}
                 </div>
+            ) : (
+                <div className="flashcard-setup">
+                    <h2>Flashcard Generator</h2>
+                    <div className="input-group">
+                        <label htmlFor="pdf-upload">Upload PDF or Text:</label>
+                        <input
+                            type="file"
+                            id="pdf-upload"
+                            accept=".pdf,.txt"
+                            onChange={handlePdfUpload}
+                            className="generate-btn"
+                        />
+                    </div>
 
-                <div className="input-group">
-                    <label htmlFor="num-cards">Number of flashcards:</label>
-                    <input
-                        type="number"
-                        id="num-cards"
-                        value={numCards}
-                        onChange={(e) => setNumCards(parseInt(e.target.value) || 5)}
-                        min="1"
-                        max="50"
-                    />
+                    <div className="input-group">
+                        <label htmlFor="pdf-text">Or paste text:</label>
+                        <textarea
+                            id="pdf-text"
+                            value={pdfText}
+                            onChange={(e) => setPdfText(e.target.value)}
+                            placeholder="Paste your text here..."
+                            rows="6"
+                        />
+                    </div>
+
+                    <div className="input-group">
+                        <label>Number of flashcards:</label>
+                        <div className="radio-options">
+                            {FLASHCARD_OPTIONS.map(option => (
+                                <label key={option} className="radio-label">
+                                    <input
+                                        type="radio"
+                                        name="num-cards"
+                                        value={option}
+                                        checked={numCards === option}
+                                        onChange={(e) => setNumCards(parseInt(e.target.value))}
+                                    />
+                                    <span>{option}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+
+                    <button
+                        className="generate-btn"
+                        onClick={generateFlashcards}
+                        disabled={isGenerating || !pdfText.trim()}
+                    >
+                        {isGenerating ? 'Generating...' : 'Generate Flashcards'}
+                    </button>
+
+                    <button
+                        className="generate-test"
+                        onClick={generateTest}
+                        disabled={isCreatingTest || !pdfText.trim()}
+                    >
+                        {isCreatingTest ? 'Creating Test...' : 'Generate Test'}
+                    </button>
                 </div>
-
-                <button
-                    className="generate-btn"
-                    onClick={generateFlashcards}
-                    disabled={isGenerating || !pdfText.trim()}
-                >
-                    {isGenerating ? 'Generating...' : 'Generate Flashcards'}
-                </button>
-            </div>
+            )}
 
             {flashcards.length > 0 && (
                 <div className="flashcard-container">
@@ -261,10 +563,7 @@ const FlashcardSystem = () => {
                         {currentIndex + 1} / {flashcards.length}
                     </div>
 
-                    <div
-                        className={`flashcard ${isFlipped ? 'flipped' : ''}`}
-                        onClick={toggleFlip}
-                    >
+                    <div className={`flashcard ${isFlipped ? 'flipped' : ''}`} onClick={toggleFlip}>
                         <div className="flashcard-front">
                             {currentFlashcard?.question}
                         </div>
@@ -313,6 +612,9 @@ const FlashcardSystem = () => {
                             onClick={toggleReviewMode}
                         >
                             {reviewMode ? 'Exit Review Mode' : 'Start Review Mode'}
+                        </button>
+                        <button className="matching-game-btn" onClick={startMatchingGame}>
+                            🎮 Play Matching Game
                         </button>
                         <button className="export-btn" onClick={exportFlashcards}>
                             Export
