@@ -30,6 +30,7 @@ const FlashcardSystem = () => {
     const [isCreatingTest, setIsCreatingTest] = useState(false);
 
     // Matching game state
+        const isTestComplete = test.length > 0 && Object.keys(selectedAnswers).length === test.length;
     const [matchingTiles, setMatchingTiles] = useState([]);
     const [flippedTiles, setFlippedTiles] = useState([]);
     const [matchingScore, setMatchingScore] = useState(0);
@@ -105,12 +106,11 @@ const FlashcardSystem = () => {
                 // Call local Ollama API
                 const response = await ollama.generate({
                     model: 'mistral',
-                    prompt: prompt,
+                    prompt,
                     stream: false,
                 });
 
-                console.log('Ollama response:', response);
-                const content = response.response.trim();
+                const content = (response?.response || '').trim();
 
                 // Extract JSON from response
                 const jsonMatch = content.match(/\[[\s\S]*\]/);
@@ -425,24 +425,17 @@ const FlashcardSystem = () => {
                 <div className="test-container">
                     <div className="test-header">
                         <h2>Practice Test</h2>
-                        <button className="exit-test-btn" onClick={handleClearTest}>
-                            ← Back to Main
-                        </button>
+                        <button className="exit-test-btn" onClick={handleClearTest}>← Back to Main</button>
                     </div>
                     <div className="question-section">
-                        <div className="question-count">
-                            Question {currentQuestion + 1}/{test.length}
-                        </div>
-                        <div className="question-text">
-                            {test[currentQuestion].question}
-                        </div>
+                        <div className="question-count">Question {currentQuestion + 1}/{test.length}</div>
+                        <div className="question-text">{test[currentQuestion].question}</div>
                     </div>
                     <div className="answer-section">
                         {test[currentQuestion].answers.map((answer, index) => (
                             <button
                                 key={index}
-                                className={`answer-btn ${selectedAnswers[currentQuestion] === answer ? 'selected' : ''} ${selectedAnswers[currentQuestion] && answer === test[currentQuestion].correctAnswer ? 'correct' : ''
-                                    }`}
+                                className={`answer-btn ${selectedAnswers[currentQuestion] === answer ? 'selected' : ''} ${selectedAnswers[currentQuestion] && answer === test[currentQuestion].correctAnswer ? 'correct' : ''}`}
                                 onClick={() => handleAnswerSelect(answer)}
                                 disabled={selectedAnswers[currentQuestion] !== undefined}
                             >
@@ -450,25 +443,23 @@ const FlashcardSystem = () => {
                             </button>
                         ))}
                     </div>
-                    <div className="test-results">
-                        Score: {score}/{test.length}
+                    <div className="test-results">Score: {score}/{test.length}</div>
+                    <div className="test-actions">
+                        {isTestComplete && (
+                            <>
+                                <button className="print-results-btn" onClick={() => window.print()}>🖨️ Print Results</button>
+                                <button className="clear-test-btn" onClick={handleClearTest}>Take Another Test</button>
+                            </>
+                        )}
                     </div>
-                    {currentQuestion === test.length - 1 && selectedAnswers[currentQuestion] !== undefined && (
-                        <button className="clear-test-btn" onClick={handleClearTest}>
-                            Take Another Test
-                        </button>
-                    )}
                 </div>
             ) : showMatchingGame ? (
                 <div className="matching-game-container">
                     <div className="game-header">
                         <h2>Matching Game</h2>
-                        <button className="exit-game-btn" onClick={handleExitMatchingGame}>
-                            ← Back to Main
-                        </button>
+                        <button className="exit-game-btn" onClick={handleExitMatchingGame}>← Back to Main</button>
                     </div>
                     <div className="score-display">Matches: {matchingScore}/{matchingTiles.length / 2}</div>
-                    
                     <div className="tiles-grid">
                         {matchingTiles.map(tile => (
                             <div
@@ -477,158 +468,132 @@ const FlashcardSystem = () => {
                                 onClick={() => handleMatchingTileClick(tile.id)}
                             >
                                 <div className="tile-front">?</div>
-                                <div className="tile-back">
-                                    {tile.content}
-                                </div>
+                                <div className="tile-back">{tile.content}</div>
                             </div>
                         ))}
                     </div>
-
                     {matchingGameWon && (
                         <div className="game-over">
                             <h3>You Win! 🎉</h3>
-                            <button className="reset-btn" onClick={startMatchingGame}>
-                                Play Again
-                            </button>
-                            <button className="exit-btn" onClick={handleExitMatchingGame}>
-                                Back to Flashcards
-                            </button>
+                            <button className="reset-btn" onClick={startMatchingGame}>Play Again</button>
+                            <button className="exit-btn" onClick={handleExitMatchingGame}>Back to Flashcards</button>
                         </div>
                     )}
                 </div>
             ) : (
                 <div className="flashcard-setup">
-                    <h2>Flashcard Generator</h2>
+                    <h1>Flashcard Memory Game</h1>
+                    <p><strong>Directions:</strong> Upload a PDF or paste text to generate flashcards for your study session. Choose the number of flashcards and start learning. You can also play a matching game or create a practice test.</p>
+
                     <div className="input-group">
-                        <label htmlFor="pdf-upload">Upload PDF or Text:</label>
-                        <input
-                            type="file"
-                            id="pdf-upload"
-                            accept=".pdf,.txt"
-                            onChange={handlePdfUpload}
-                            className="generate-btn"
-                        />
+                        <label htmlFor="pdf-upload">Upload PDF:</label>
+                        <input type="file" id="pdf-upload" accept=".pdf,.txt" onChange={handlePdfUpload} className="generate-btn" />
                     </div>
 
                     <div className="input-group">
-                        <label htmlFor="pdf-text">Or paste text:</label>
-                        <textarea
-                            id="pdf-text"
-                            value={pdfText}
-                            onChange={(e) => setPdfText(e.target.value)}
-                            placeholder="Paste your text here..."
-                            rows="6"
-                        />
+                        <label htmlFor="pdf-text">Or Paste Text:</label>
+                        <textarea id="pdf-text" value={pdfText} onChange={(e) => setPdfText(e.target.value)} placeholder="Paste your text here..." rows="6" />
                     </div>
 
                     <div className="input-group">
-                        <label>Number of flashcards:</label>
+                        <label>How many flashcards do you want?</label>
                         <div className="radio-options">
                             {FLASHCARD_OPTIONS.map(option => (
                                 <label key={option} className="radio-label">
-                                    <input
-                                        type="radio"
-                                        name="num-cards"
-                                        value={option}
-                                        checked={numCards === option}
-                                        onChange={(e) => setNumCards(parseInt(e.target.value))}
-                                    />
+                                    <input type="radio" name="num-cards" value={option} checked={numCards === option} onChange={(e) => setNumCards(parseInt(e.target.value))} />
                                     <span>{option}</span>
                                 </label>
                             ))}
                         </div>
                     </div>
 
-                    <button
-                        className="generate-btn"
-                        onClick={generateFlashcards}
-                        disabled={isGenerating || !pdfText.trim()}
-                    >
+                    <button className="generate-btn" onClick={generateFlashcards} disabled={isGenerating || !pdfText.trim()}>
                         {isGenerating ? 'Generating...' : 'Generate Flashcards'}
                     </button>
 
-                    <button
-                        className="generate-test"
-                        onClick={generateTest}
-                        disabled={isCreatingTest || !pdfText.trim()}
-                    >
+                    <button className="generate-test" onClick={generateTest} disabled={isCreatingTest || !pdfText.trim()}>
                         {isCreatingTest ? 'Creating Test...' : 'Generate Test'}
                     </button>
                 </div>
             )}
 
-            {flashcards.length > 0 && (
+            {flashcards.length > 0 && !test.length && !showMatchingGame && (
                 <div className="flashcard-container">
-                    <div className="progress">
-                        {currentIndex + 1} / {flashcards.length}
-                    </div>
+                    <div className="progress">{currentIndex + 1} / {flashcards.length}</div>
 
                     <div className={`flashcard ${isFlipped ? 'flipped' : ''}`} onClick={toggleFlip}>
-                        <div className="flashcard-front">
-                            {currentFlashcard?.question}
-                        </div>
-                        <div className="flashcard-back">
-                            {currentFlashcard?.answer}
-                        </div>
+                        <div className="flashcard-front">{currentFlashcard?.question}</div>
+                        <div className="flashcard-back">{currentFlashcard?.answer}</div>
                     </div>
 
                     <div className="nav-buttons">
-                        <button
-                            className="nav-btn"
-                            onClick={prevFlashcard}
-                            disabled={currentIndex === 0}
-                        >
-                            ← Previous
-                        </button>
-                        <button
-                            className="nav-btn"
-                            onClick={nextFlashcard}
-                            disabled={currentIndex === flashcards.length - 1}
-                        >
-                            Next →
-                        </button>
+                        <button className="nav-btn" onClick={prevFlashcard} disabled={currentIndex === 0}>← Previous</button>
+                        <button className="nav-btn" onClick={nextFlashcard} disabled={currentIndex === flashcards.length - 1}>Next →</button>
                     </div>
 
                     {reviewMode && (
                         <div className="flashcard-controls">
-                            <button className="correct-btn" onClick={markCorrect}>
-                                ✓ Correct
-                            </button>
-                            <button className="incorrect-btn" onClick={markIncorrect}>
-                                ✗ Incorrect
-                            </button>
+                            <button className="correct-btn" onClick={markCorrect}>✓ Correct</button>
+                            <button className="incorrect-btn" onClick={markIncorrect}>✗ Incorrect</button>
                         </div>
                     )}
 
                     {reviewMode && (
-                        <div className="score-display">
-                            {score}/{totalReviewed} ({percentage}%)
-                        </div>
+                        <div className="score-display">{score}/{totalReviewed} ({percentage}%)</div>
                     )}
 
                     <div className="action-buttons">
-                        <button
-                            className={`review-btn ${reviewMode ? 'active' : ''}`}
-                            onClick={toggleReviewMode}
-                        >
+                        <button className={`review-btn ${reviewMode ? 'active' : ''}`} onClick={toggleReviewMode}>
                             {reviewMode ? 'Exit Review Mode' : 'Start Review Mode'}
                         </button>
-                        <button className="matching-game-btn" onClick={startMatchingGame}>
-                            🎮 Play Matching Game
-                        </button>
-                        <button className="export-btn" onClick={exportFlashcards}>
-                            Export
-                        </button>
-                        <label className="import-btn">
+                        <button className="matching-game-btn" onClick={startMatchingGame}>🎮 Play Matching Game</button>
+                        <button className="export-btn" onClick={exportFlashcards}>Export</button>
+                        <button className="import-btn">
                             Import
-                            <input
-                                type="file"
-                                accept=".json"
-                                onChange={importFlashcards}
-                                style={{ display: 'none' }}
-                            />
-                        </label>
+                            <input type="file" accept=".json" onChange={importFlashcards} style={{ display: 'none' }} />
+                        </button>
                     </div>
+                </div>
+            )}
+
+            {isTestComplete && (
+                <div className="print-area">
+                    <h1>Practice Test Results</h1>
+                    <div className="print-meta">
+                        <div>Date: {new Date().toLocaleString()}</div>
+                        <div>Score: {score}/{test.length}</div>
+                    </div>
+                    <ol className="print-questions">
+                        {test.map((q, idx) => {
+                            const userAns = selectedAnswers[idx];
+                            return (
+                                <li key={idx} className="print-question">
+                                    <div className="q-text">{q.question}</div>
+                                    <ul className="print-answers">
+                                        {q.answers.map((ans, i) => {
+                                            const isCorrect = ans === q.correctAnswer;
+                                            const isSelected = ans === userAns;
+                                            const cls = isCorrect && isSelected
+                                                ? 'answer selected-correct'
+                                                : isCorrect
+                                                    ? 'answer correct'
+                                                    : isSelected
+                                                        ? 'answer selected-wrong'
+                                                        : 'answer';
+                                            return (
+                                                <li key={i} className={cls}>
+                                                    <span className="answer-text">{ans}</span>
+                                                    {isCorrect && <span className="badge correct">Correct</span>}
+                                                    {isSelected && !isCorrect && <span className="badge chosen">Your Answer</span>}
+                                                    {isSelected && isCorrect && <span className="badge chosen-correct">Your Answer ✓</span>}
+                                                </li>
+                                            );
+                                        })}
+                                    </ul>
+                                </li>
+                            );
+                        })}
+                    </ol>
                 </div>
             )}
         </div>

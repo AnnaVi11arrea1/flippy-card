@@ -68,7 +68,6 @@
 
 .tile-front,
 .tile-back {
-    position: absolute;
     width: 100%;
     height: 100%;
     backface-visibility: hidden;
@@ -82,15 +81,28 @@
     align-items: center;
     justify-content: center;
     font-size: 2rem;
-    color: white;
     transform: rotateY(0deg);
 }
 
 .tile-front::after {
-    content: '?';
+    content: '';
+    position: absolute;
+    /* Served from public/images so use absolute path */
+    background-image: url('/images/question.svg');
+    background-repeat: no-repeat;
+    background-position: center;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80%;
+    height: 80%;
+    box-shadow: 5px 5px 6px rgb(0, 0, 0);
 }
 
 .tile-back {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background-size: cover;
     background-position: center;
     transform: rotateY(-180deg);

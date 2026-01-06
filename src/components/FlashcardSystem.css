@@ -1,8 +1,17 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #0d0023;
+    color: #ffffff;
+    margin: 0;
+    padding: 0;
+}
+
 .flashcard-system {
     max-width: 900px;
     margin: 0 auto;
-    padding: 20px;
+    padding: 5px;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 16px;
 }
 
 .message {
@@ -59,6 +68,7 @@
 }
 
 .input-group {
+    padding-top: 10px;
     margin-bottom: 20px;
 }
 
@@ -66,7 +76,7 @@
     display: block;
     margin-bottom: 8px;
     font-weight: 600;
-    font-size: 1rem;
+    font-size: 1.5rem;
 }
 
 .input-group input[type="file"],
@@ -93,14 +103,14 @@
 /* Radio Button Styles */
 .radio-options {
     display: flex;
-    flex-wrap: wrap;
-    gap: 15px;
+    flex-direction: row;
+    justify-content: space-evenly;
+    gap: 10px;
     margin-top: 10px;
 }
 
 .radio-label {
     display: flex;
-    align-items: center;
     gap: 8px;
     cursor: pointer;
     font-weight: 500;
@@ -108,34 +118,36 @@
 
 .radio-label input[type="radio"] {
     cursor: pointer;
-    width: 18px;
-    height: 18px;
-    accent-color: #4CAF50;
+    width: 22px;
+    height: 22px;
+    accent-color: #15f5d3;
 }
 
 .radio-label span {
-    font-size: 1rem;
+    font-size: 1.7rem;
+    padding-top: 0;
 }
 
 .generate-btn, .generate-test {
     width: 100%;
     padding: 15px;
-    background-color: #4CAF50;
-    color: white;
+    background-color: #7dc0d8;
+    color: rgb(66, 0, 146);
     border: none;
     border-radius: 6px;
-    font-size: 1.1rem;
+    font-size: 1.5rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s;
     margin-top: 10px;
+    letter-spacing: 1.1px;
 }
 
 .generate-btn:hover:not(:disabled), 
 .generate-test:hover:not(:disabled) {
-    background-color: #45a049;
+    background-color: #52daa6;
     transform: translateY(-2px);
-    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+    box-shadow: 5px 6px rgb(0, 0, 0);
 }
 
 .generate-btn:disabled, 
@@ -147,16 +159,17 @@
 
 /* Flashcard Container */
 .flashcard-container {
-    background: white;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     padding: 30px;
     border-radius: 12px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    border: 1px solid #4f00b5;
 }
 
 .progress {
     text-align: center;
-    font-size: 1.1rem;
-    color: #666;
+    font-size: 1.3rem;
+    color: #bebebe;
     margin-bottom: 20px;
     font-weight: 600;
 }
@@ -183,7 +196,7 @@
     border-radius: 12px;
     padding: 30px;
     box-sizing: border-box;
-    font-size: 1.3rem;
+    font-size: 2.5rem;
     font-weight: 500;
     text-align: center;
     transition: transform 0.6s;
@@ -191,7 +204,7 @@
 }
 
 .flashcard-front {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: rgb(29, 0, 54);
     color: white;
     transform: rotateY(0deg);
 }
@@ -206,7 +219,7 @@
 }
 
 .flashcard-back {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    background: purple;
     color: white;
     transform: rotateY(180deg);
 }
@@ -313,25 +326,26 @@
     justify-content: center;
     flex-wrap: wrap;
 }
-
+#pdf-upload,
 .review-btn,
 .export-btn,
 .import-btn {
     padding: 12px 25px;
     border: 2px solid #667eea;
-    background-color: white;
-    color: #667eea;
+    background-image: linear-gradient(180deg, #667eea, #764ba2, #667eea);
+    color: #c2ccf6;
     border-radius: 6px;
-    font-size: 1rem;
+    font-size: 1.5rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.3s;
+    box-shadow: 3px 3px 6px rgb(5, 16, 64);
 }
 
 .review-btn:hover,
 .export-btn:hover,
 .import-btn:hover {
-    background-color: #667eea;
+    background-color: rgb(49, 0, 122);
     color: white;
     transform: translateY(-2px);
     box-shadow: 0 4px 10px rgba(102, 126, 234, 0.4);
@@ -351,7 +365,7 @@
 /* Matching Game Styles */
 .matching-game-container {
     background: white;
-    padding: 30px;
+    padding: 10px;
     border-radius: 12px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
@@ -395,8 +409,8 @@
 
 .tiles-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 15px;
     margin-bottom: 30px;
 }
 
@@ -408,6 +422,7 @@
     cursor: pointer;
     border-radius: 8px;
     overflow: hidden;
+    min-height: 140px;
 }
 
 .tile-front,
@@ -421,22 +436,25 @@
     transition: transform 0.6s;
     backface-visibility: hidden;
     border-radius: 8px;
-    font-weight: 600;
     text-align: center;
-    padding: 10px;
-    font-size: 0.9rem;
-    line-height: 1.2;
+    padding: 12px;
+    box-sizing: border-box;
+    font-size: clamp(0.75rem, 2vw, 1rem);
+    font-weight: 600;
+    line-height: 1.3;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
 }
 
 .tile-front {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
-    font-size: 2rem;
     transform: rotateY(0deg);
 }
 
 .tile-back {
-    background-color: #f0f0f0;
+    background-color: #ece7ff;
     color: #333;
     transform: rotateY(180deg);
 }
@@ -448,6 +466,7 @@
 .tile.flipped .tile-back {
     transform: rotateY(0deg);
 }
+
 
 .game-over {
     text-align: center;
@@ -472,7 +491,7 @@
     border-radius: 6px;
     cursor: pointer;
     font-weight: 600;
-    font-size: 1rem;
+    font-size: 2rem;
     transition: all 0.3s;
 }
 
@@ -480,6 +499,74 @@
 .exit-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Print Results Styles */
+.print-results-btn {
+    padding: 12px 20px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    margin-right: 10px;
+}
+
+.test-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 15px;
+}
+
+.print-area {
+    display: none;
+}
+
+.print-area h1 {
+    margin-bottom: 10px;
+}
+
+.print-meta {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    font-size: 0.95rem;
+}
+
+.print-questions {
+    list-style: decimal;
+    padding-left: 20px;
+}
+
+.print-question { margin-bottom: 16px; }
+.q-text { font-weight: 600; margin-bottom: 6px; }
+.print-answers { list-style: disc; padding-left: 20px; }
+.answer { margin: 4px 0; }
+.answer .badge { margin-left: 8px; font-size: 0.85rem; }
+.badge.correct { color: #2e7d32; font-weight: 700; }
+.badge.chosen { color: #c62828; font-weight: 700; }
+.badge.chosen-correct { color: #2e7d32; font-weight: 700; }
+
+@media print {
+    /* Hide everything by default */
+    body * { visibility: hidden; }
+    /* Only show print-area */
+    .print-area, .print-area * { visibility: visible; }
+    .print-area {
+        display: block;
+        position: absolute;
+        left: 0; top: 0;
+        width: 100%;
+        color: #000;
+        background: #fff;
+        padding: 24px;
+        box-sizing: border-box;
+        font-size: 12pt;
+    }
+    /* Avoid breaking list items across pages */
+    .print-question { page-break-inside: avoid; }
 }
 
 /* Responsive Design */
@@ -503,7 +590,16 @@
     .flashcard-front,
     .flashcard-back {
         padding: 20px;
-        font-size: 1.1rem;
+    }
+
+    /* Adjust tiles grid for tablets */
+    .tiles-grid {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 12px;
+    }
+
+    .tile {
+        min-height: 120px;
     }
 
     .flashcard-controls {
@@ -542,10 +638,73 @@
     .flashcard-front,
     .flashcard-back {
         padding: 15px;
-        font-size: 1rem;
+        font-size: 2rem;
     }
 
     .flashcard-setup h2 {
         font-size: 1.3rem;
     }
+
+    /* Mobile tiles - make them larger to fit text */
+    .tiles-grid {
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+        gap: 10px;
+    }
+
+    .tile {
+        min-height: 100px;
+    }
+
+    .tile-front,
+    .tile-back {
+        font-size: clamp(0.65rem, 1.8vw, 0.9rem);
+        padding: 10px;
+    }
+}
+
+/* TEST CONTAINER */
+.test-container {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    border: 1px solid #4f00b5;
+    color: white;
+    margin-bottom: 30px;
+}
+
+.answer-section {
+    margin-top: 20px;
+    text-align: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 25px;
+    justify-content: center;
+}
+
+.answer-btn {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    padding: 20px;
+    background-color: #15f5d3;
+    border-radius: 10px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    width:45%;
+    height:auto;
+    cursor: pointer;
+}
+
+.answer-btn:hover {
+    background-color: #a6fff2;
+    transform: translateY(-2px);
+    box-shadow: 5px 4px 10px rgba(0, 0, 0, 0.4);
+}
+
+.test-results {
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-top: 20px;
 }

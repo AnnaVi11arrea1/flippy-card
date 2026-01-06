@@ -6,10 +6,16 @@ import FlashcardSystem from './components/FlashcardSystem.jsx';
 
 
 function App() {
+  const [showDemo, setShowDemo] = useState(true);
 
   return (
     <div className="App">
-      <MemoryGame />
+      <div className="demo-toggle">
+        <button onClick={() => setShowDemo(!showDemo)} className="hide-demo-btn">
+          {showDemo ? '✕ Hide Demo' : '+ Show Demo'}
+        </button>
+      </div>
+      {showDemo && <MemoryGame />}
       <FlashcardSystem />
     </div>
   );

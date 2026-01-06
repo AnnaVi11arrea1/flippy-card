@@ -81,21 +81,6 @@
     margin-right: 10px;
 }
 
-#generate-btn {
-    width: 100%;
-    margin-bottom: 10px;
-    background-color: #009e08;
-}
-
-#generate-btn:disabled {
-    background-color: #555;
-    cursor: not-allowed;
-}
-
-#generate-btn:hover:not(:disabled) {
-    background-color: #00bb0e;
-}
-
 .secondary-btn {
     background-color: #444 !important;
     margin-right: 10px;
@@ -135,7 +120,6 @@
     background-color: black;
     padding: 20px;
     border-radius: 10px;
-    border: 2px solid #009e08;
 }
 
 .flashcard-header {
@@ -201,19 +185,6 @@
     word-wrap: break-word;
 }
 
-.flashcard-front {
-    background: linear-gradient(135deg, #009e08, #007a06);
-    color: white;
-    border: 2px solid #009e08;
-}
-
-.flashcard-back {
-    background: linear-gradient(135deg, #1a1a1a, #333);
-    color: #009e08;
-    border: 2px solid #009e08;
-    transform: rotateY(180deg);
-}
-
 .flashcard-hint {
     text-align: center;
     color: #999;
@@ -227,26 +198,6 @@
     grid-template-columns: repeat(4, 1fr);
     gap: 10px;
     margin-top: 20px;
-}
-
-body {
-    font-family: Arial, sans-serif;
-    background-color: #919192;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 20px;
-}
-
-button {
-    padding: 10px 20px;
-    margin: 5px;
-    font-size: 16px;
-    cursor: pointer;
-    border: none;
-    border-radius: 5px;
-    background-color: #4CAF50;
-    color: white;
 }
 
 .tile {
@@ -303,5 +254,4 @@ button {
     background-color: black;
     padding: 20px;
     border-radius: 10px;
-    border: 2px solid #009e08;
 }
