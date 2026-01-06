@@ -28,6 +28,7 @@ const FlashcardSystem = () => {
     const [currentQuestion, setCurrentQuestion] = useState(0);
     const [selectedAnswers, setSelectedAnswers] = useState({});
     const [isCreatingTest, setIsCreatingTest] = useState(false);
+    const [showReview, setShowReview] = useState(false);
 
     // Matching game state
         const isTestComplete = test.length > 0 && Object.keys(selectedAnswers).length === test.length;
@@ -243,6 +244,7 @@ const FlashcardSystem = () => {
         setCurrentQuestion(0);
         setSelectedAnswers({});
         setScore(0);
+        setShowReview(false);
     }, []);
 
     // Start matching game
@@ -448,6 +450,9 @@ const FlashcardSystem = () => {
                         {isTestComplete && (
                             <>
                                 <button className="print-results-btn" onClick={() => window.print()}>🖨️ Print Results</button>
+                                <button className="review-results-btn" onClick={() => setShowReview(v => !v)}>
+                                    {showReview ? 'Hide Review' : 'Review Results'}
+                                </button>
                                 <button className="clear-test-btn" onClick={handleClearTest}>Take Another Test</button>
                             </>
                         )}
@@ -580,6 +585,46 @@ const FlashcardSystem = () => {
                                                     : isSelected
                                                         ? 'answer selected-wrong'
                                                         : 'answer';
+                                            return (
+                                                <li key={i} className={cls}>
+                                                    <span className="answer-text">{ans}</span>
+                                                    {isCorrect && <span className="badge correct">Correct</span>}
+                                                    {isSelected && !isCorrect && <span className="badge chosen">Your Answer</span>}
+                                                    {isSelected && isCorrect && <span className="badge chosen-correct">Your Answer ✓</span>}
+                                                </li>
+                                            );
+                                        })}
+                                    </ul>
+                                </li>
+                            );
+                        })}
+                    </ol>
+                </div>
+            )}
+
+            {isTestComplete && showReview && (
+                <div className="review-results">
+                    <div className="review-header">
+                        <h2>Review Results</h2>
+                        <div className="review-score">Score: {score}/{test.length}</div>
+                    </div>
+                    <ol className="review-questions">
+                        {test.map((q, idx) => {
+                            const userAns = selectedAnswers[idx];
+                            return (
+                                <li key={idx} className="review-question">
+                                    <div className="q-text">{q.question}</div>
+                                    <ul className="review-answers">
+                                        {q.answers.map((ans, i) => {
+                                            const isCorrect = ans === q.correctAnswer;
+                                            const isSelected = ans === userAns;
+                                            const cls = isCorrect && isSelected
+                                                ? 'review-answer selected-correct'
+                                                : isCorrect
+                                                    ? 'review-answer correct'
+                                                    : isSelected
+                                                        ? 'review-answer selected-wrong'
+                                                        : 'review-answer';
                                             return (
                                                 <li key={i} className={cls}>
                                                     <span className="answer-text">{ans}</span>

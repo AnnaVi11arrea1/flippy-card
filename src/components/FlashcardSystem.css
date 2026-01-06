@@ -524,6 +524,47 @@ body {
     display: none;
 }
 
+.review-results-btn {
+    padding: 12px 20px;
+    background-color: #7dc0d8;
+    color: #1a1440;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.review-results {
+    background: #fff;
+    color: #222;
+    border-radius: 10px;
+    padding: 20px;
+    margin-top: 20px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.review-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.review-questions { list-style: decimal; padding-left: 20px; }
+.review-question { margin-bottom: 14px; }
+.review-answers { list-style: disc; padding-left: 20px; }
+.review-answer { margin: 4px 0; padding: 6px 8px; border-radius: 6px; }
+.review-answer.correct { background: #e8f5e9; color: #2e7d32; }
+.review-answer.selected-wrong { background: #ffebee; color: #c62828; }
+.review-answer.selected-correct { background: #e3f2fd; color: #1565c0; }
+.review-score { font-weight: 700; }
+
+.answer-text { word-break: break-word; }
+.badge { margin-left: 8px; font-size: 0.85rem; }
+.badge.correct { color: #2e7d32; font-weight: 700; }
+.badge.chosen { color: #c62828; font-weight: 700; }
+.badge.chosen-correct { color: #1565c0; font-weight: 700; }
+
 .print-area h1 {
     margin-bottom: 10px;
 }
@@ -657,7 +698,7 @@ body {
 
     .tile-front,
     .tile-back {
-        font-size: clamp(0.65rem, 1.8vw, 0.9rem);
+        font-size: clamp(0.65rem, 1.5vw, .9rem);
         padding: 10px;
     }
 }
