@@ -1,5 +1,11 @@
 import { useState, useCallback } from 'react';
 import './FlashcardSystem.css';
+import ollama from 'ollama';
+import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
+
+// Point pdf.js at your bundled worker
+GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+
 
 const FlashcardSystem = () => {
     const [flashcards, setFlashcards] = useState([]);
@@ -37,29 +43,31 @@ const FlashcardSystem = () => {
 
     // Extract text from PDF
     const extractTextFromPdf = async (file) => {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = async (e) => {
-                try {
-                    const text = parsePdfData(e.target.result);
-                    resolve(text);
-                } catch (error) {
-                    reject(error);
-                }
-            };
-            reader.onerror = () => reject(new Error('Failed to read file'));
-            reader.readAsArrayBuffer(file);
-        });
-    };
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await getDocument({ data: arrayBuffer }).promise;
+        const pages = [];
 
-    // Parse PDF data
-    const parsePdfData = (arrayBuffer) => {
-        const text = new TextDecoder().decode(new Uint8Array(arrayBuffer));
-        return text.split(/[\n\r]+/).filter(line => line.trim().length > 0).join(' ');
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            const strings = content.items
+                .map((item) => item.str)
+                .filter(Boolean);
+            pages.push(strings.join(' '));
+        }
+
+        return pages.join('\n\n');
     };
 
     // Generate flashcards
     const generateFlashcards = useCallback(async () => {
+        const apiKey = import.meta.env.VITE_OLLAMA_API_KEY;
+        
+        if (!apiKey) {
+            showMessage('Ollama API key is not set. Please set VITE_OLLAMA_API_KEY in your .env file.', 'error');
+            return;
+        }
+
         const textToAnalyze = pdfText.trim();
 
         if (!textToAnalyze) {
@@ -70,68 +78,52 @@ const FlashcardSystem = () => {
         setIsGenerating(true);
         showMessage('Generating flashcards...', 'info');
 
-        try {
-            const prompt = `You are an expert educator. Based on the following text, generate exactly ${numCards} flashcard questions and answers. 
+        const prompt = `You are an expert educator. Based on the following text, generate exactly ${numCards} flashcard questions and answers. 
+        
+        Format your response as a valid JSON array with no additional text, like this:
+        [
+            {"question": "What is X?", "answer": "X is..."},
+            {"question": "How does Y work?", "answer": "Y works by..."}
+            ]
             
-Format your response as a valid JSON array with no additional text, like this:
-[
-    {"question": "What is X?", "answer": "X is..."},
-    {"question": "How does Y work?", "answer": "Y works by..."}
-]
+            Text to analyze:
+            ${textToAnalyze.substring(0, 2000)}`;
 
-Text to analyze:
-${textToAnalyze.substring(0, 2000)}`;
+        setTimeout(async () => {
+            try {
+                console.log("JOHN WAS HERE");
+                // Call local Ollama API
+                const response = await ollama.generate(prompt, { apiKey });
 
-            // Call local Ollama API
-            const response = await fetch('http://localhost:11434/api/chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    model: 'llama2', // or 'neural-chat', 'mistral', etc. - change to your available model
-                    messages: [
-                        {
-                            role: 'system',
-                            content: 'You are a helpful educator who creates flashcard questions. Always respond with valid JSON only, no additional text.'
-                        },
-                        {
-                            role: 'user',
-                            content: prompt
-                        }
-                    ],
-                    stream: false,
-                    temperature: 0.7,
-                })
-            });
+                console.log(response);
+                if (!response.ok) {
+                    throw new Error(`Ollama API error: ${response.status} - Make sure Ollama is running on localhost:11434`);
+                }
 
-            if (!response.ok) {
-                throw new Error(`Ollama API error: ${response.status} - Make sure Ollama is running on localhost:11434`);
+                const data = await response.json();
+                const content = data.message.content.trim();
+
+                // Extract JSON from response
+                const jsonMatch = content.match(/\[[\s\S]*\]/);
+                if (!jsonMatch) {
+                    throw new Error('Invalid response format - could not extract JSON from Ollama response');
+                }
+
+                const parsedFlashcards = JSON.parse(jsonMatch[0]);
+                setFlashcards(parsedFlashcards);
+                setCurrentIndex(0);
+                setScore(0);
+                setTotalReviewed(0);
+                setIsFlipped(false);
+                setReviewMode(false);
+
+                showMessage(`Generated ${parsedFlashcards.length} flashcards!`, 'success');
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+            } finally {
+                setIsGenerating(false);
             }
-
-            const data = await response.json();
-            const content = data.message.content.trim();
-
-            // Extract JSON from response
-            const jsonMatch = content.match(/\[[\s\S]*\]/);
-            if (!jsonMatch) {
-                throw new Error('Invalid response format - could not extract JSON from Ollama response');
-            }
-
-            const parsedFlashcards = JSON.parse(jsonMatch[0]);
-            setFlashcards(parsedFlashcards);
-            setCurrentIndex(0);
-            setScore(0);
-            setTotalReviewed(0);
-            setIsFlipped(false);
-            setReviewMode(false);
-
-            showMessage(`Generated ${parsedFlashcards.length} flashcards!`, 'success');
-        } catch (error) {
-            showMessage(`Error: ${error.message}`, 'error');
-        } finally {
-            setIsGenerating(false);
-        }
+        }, 1000);
     }, [pdfText, numCards, showMessage]);
 
     // Toggle flip

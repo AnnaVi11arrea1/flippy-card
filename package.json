@@ -1,8 +1,20 @@
 {
   "name": "flippy-tile",
-  "private": true,
   "version": "0.0.0",
+  "private": true,
+  "description": "This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.",
+  "homepage": "https://github.com/AnnaVi11arrea1/flippy-card#readme",
+  "bugs": {
+    "url": "https://github.com/AnnaVi11arrea1/flippy-card/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AnnaVi11arrea1/flippy-card.git"
+  },
+  "license": "ISC",
+  "author": "Anna Villarreal",
   "type": "module",
+  "main": "eslint.config.js",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -10,6 +22,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "dotenv": "^17.2.3",
     "ollama": "^0.6.3",
     "pdfjs-dist": "^5.4.530",
     "react": "^19.2.0",
