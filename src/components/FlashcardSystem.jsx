@@ -2,9 +2,10 @@ import { useState, useCallback } from 'react';
 import './FlashcardSystem.css';
 import ollama from 'ollama';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
+import workerSrc from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
-// Point pdf.js at your bundled worker
-GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+// Point pdf.js at the correct worker
+GlobalWorkerOptions.workerSrc = workerSrc;
 
 
 const FlashcardSystem = () => {
@@ -61,13 +62,6 @@ const FlashcardSystem = () => {
 
     // Generate flashcards
     const generateFlashcards = useCallback(async () => {
-        const apiKey = import.meta.env.VITE_OLLAMA_API_KEY;
-        
-        if (!apiKey) {
-            showMessage('Ollama API key is not set. Please set VITE_OLLAMA_API_KEY in your .env file.', 'error');
-            return;
-        }
-
         const textToAnalyze = pdfText.trim();
 
         if (!textToAnalyze) {
@@ -91,18 +85,16 @@ const FlashcardSystem = () => {
 
         setTimeout(async () => {
             try {
-                console.log("JOHN WAS HERE");
                 // Call local Ollama API
-                const response = await ollama.generate(prompt, { apiKey });
+                const response = await ollama.generate({
+                    model: 'mistral',
+                    prompt: prompt,
+                    stream: false,
+                });
 
-                console.log(response);
-                if (!response.ok) {
-                    throw new Error(`Ollama API error: ${response.status} - Make sure Ollama is running on localhost:11434`);
-                }
-
-                const data = await response.json();
-                const content = data.message.content.trim();
-
+                console.log('Ollama response:', response);
+                const content = response.response.trim();
+                
                 // Extract JSON from response
                 const jsonMatch = content.match(/\[[\s\S]*\]/);
                 if (!jsonMatch) {
@@ -119,11 +111,12 @@ const FlashcardSystem = () => {
 
                 showMessage(`Generated ${parsedFlashcards.length} flashcards!`, 'success');
             } catch (error) {
+                console.error('Flashcard generation error:', error);
                 showMessage(`Error: ${error.message}`, 'error');
             } finally {
                 setIsGenerating(false);
             }
-        }, 1000);
+        }, 10000);
     }, [pdfText, numCards, showMessage]);
 
     // Toggle flip
