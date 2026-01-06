@@ -1,24 +1,30 @@
 {
-  "name": "flippy-tiles",
-  "version": "1.0.0",
-  "description": "A memory game application with flashcard generation using ChatGPT.",
-  "homepage": "https://github.com/AnnaVi11arrea1/Memory-Game#readme",
-  "bugs": {
-    "url": "https://github.com/AnnaVi11arrea1/Memory-Game/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/AnnaVi11arrea1/Memory-Game.git"
-  },
-  "license": "ISC",
-  "author": "Anna Villarreal",
+  "name": "flippy-tile",
+  "private": true,
+  "version": "0.0.0",
   "type": "module",
-  "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
   },
   "dependencies": {
-    "dotenv": "^17.2.3",
-    "ollama": "^0.6.3"
+    "ollama": "^0.6.3",
+    "pdfjs-dist": "^5.4.530",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@types/react": "^19.2.5",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "vite": "^7.2.4"
   }
 }
