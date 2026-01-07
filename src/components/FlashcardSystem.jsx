@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
 import './FlashcardSystem.css';
-import ollama from 'ollama';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 import workerSrc from 'pdfjs-dist/build/pdf.worker.mjs?url';
 
@@ -390,10 +389,16 @@ const FlashcardSystem = () => {
 
         setTimeout(async () => {
             try {
-                const response = await ollama.generate({
+                const response = await fetch('https://senary-hydrothermally-susan.ngrok-free.dev',{
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
                     model: 'mistral',
-                    prompt: prompt,
+                    prompt,
                     stream: false,
+                })
                 });
 
                 console.log('Test Ollama response:', response);
