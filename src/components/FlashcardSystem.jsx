@@ -105,10 +105,16 @@ const FlashcardSystem = () => {
         setTimeout(async () => {
             try {
                 // Call local Ollama API
-                const response = await ollama.generate({
+                const response = await fetch('https://senary-hydrothermally-susan.ngrok-free.dev',{
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
                     model: 'mistral',
                     prompt,
                     stream: false,
+                })
                 });
 
                 const content = (response?.response || '').trim();
