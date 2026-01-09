@@ -3,6 +3,10 @@
 
 A web application featuring an interactive classic Memory Game and an AI-powered Flashcard Generator. 
 
+<img width="1036" height="838" alt="Screenshot 2026-01-08 203930" src="https://github.com/user-attachments/assets/3ded395d-ce56-421a-b3da-3a5e1bbc2de5" />
+
+
+
 ## Features
 
 ### 🎮 Memory Game
