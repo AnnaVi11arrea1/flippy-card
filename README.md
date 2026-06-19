@@ -1,20 +1,19 @@
 
-# Flashcard & Memory Game App
+# Flashcard Matching Game App
 
-A web application featuring an interactive classic Memory Game and an AI-powered Flashcard Generator. 
+A Vite + React study app with Ollama-powered flashcards, practice tests, a matching-card game, and Neon/Vercel-backed user accounts with saved history.
 
 ## Features
-
-### 🎮 Memory Game
-- Classic flip-and-match memory game
-- 12 tiles with images
-- Score tracking
-- Flip animation with 3D perspective
 
 ### 📚 AI Flashcard Generator
 - Upload PDF files or paste study material on any topic
 - Ollama integration to generate Q&A flashcard pairs (Mistral)
 - Interactive flashcard review with flip animation
+- Matching game generated from your flashcards
+- Email/password login backed by Neon + Vercel
+- Save and reload up to 10 flashcard sets per user
+- Save and reload up to 10 tests per user
+- Delete older saved items before creating more once you reach the cap
 - Review mode with performance tracking
 - Export/Import flashcards as JSON
 - Previous/Next navigation
@@ -26,26 +25,59 @@ A web application featuring an interactive classic Memory Game and an AI-powered
 ### 1. Prerequisites
 - Modern web browser (Chrome, Firefox, Safari, Edge)
 - Install Ollama locally or use an instance elsewhere
+ - A Neon Postgres database
+ - A Vercel project connected to this repository for deployment
 
 
-### 3. Configuration
-Set your personal environment variables
+### 2. Configuration
+Create a `.env` file from `.env.example` and set:
 
-```javascript
-const OLLAMA_API_KEY = "your-actual-api-key-here";
+```bash
+DATABASE_URL=postgresql://user:password@host.neon.tech/dbname?sslmode=require
+VITE_OLLAMA_BASE_URL=http://127.0.0.1:11434
+VITE_OLLAMA_MODEL=mistral
+VITE_API_BASE_URL=
+VITE_API_PROXY_TARGET=http://127.0.0.1:3000
 ```
 
-### 4. Running the App
-1. Simply open `index.html` in your web browser
-2. Navigate between "Memory Game" and "Flashcards" tabs
+Then make sure the model is installed locally:
+
+```bash
+ollama pull mistral
+ollama serve
+```
+
+### 3. Running the App Locally
+1. Start the Vercel API layer in one terminal:
+
+```bash
+npm run dev:api
+```
+
+2. Start the Vite frontend in a second terminal:
+
+```bash
+npm run dev
+```
+
+3. Open the Vite URL, create an account, then generate/save flashcards and tests.
+
+### 4. Database
+The app auto-creates its tables on first API request. The schema is also included in `db/schema.sql` if you want to review or run it manually.
+
+Tables:
+- `users`
+- `sessions`
+- `saved_flashcard_sets`
+- `saved_tests`
+
+### 5. Vercel Deployment
+1. Create a Neon database and copy its connection string into `DATABASE_URL`
+2. In Vercel, add the same environment variables from `.env.example`
+3. Deploy the repository to Vercel
+4. Make sure Ollama is reachable from wherever you want generation to run, or point `VITE_OLLAMA_BASE_URL` at your Ollama host
 
 ## How to Use
-
-### Memory Game
-1. Click "Play Sample Game" button
-2. Click tiles to flip and find matching pairs
-3. Match all pairs to win
-4. Score increases with each successful match
 
 ### Flashcard Generator
 1. **Add Study Material**: Either
@@ -56,16 +88,21 @@ const OLLAMA_API_KEY = "your-actual-api-key-here";
 4. **Study**: 
    - Click flashcards to reveal answers
    - Use Previous/Next buttons to navigate
-5. **Review Mode**:
+5. **Save or Reload**:
+   - Create an account or log in from the uploader screen
+   - Save up to 10 flashcard sets and 10 tests
+   - Load or delete previous saves from the account panel
+6. **Review Mode**:
    - Click "Start Review Mode" to test yourself
    - Mark answers as correct/incorrect
    - Track your performance score
-6. **Export/Import**: Save your flashcards as JSON for later use
+7. **Export/Import**: Save your flashcards as JSON for later use
 
 ## Technologies Used
-- **HTML5** - Structure
+- **React + Vite** - Frontend
 - **CSS3** - Styling with 3D transforms and animations
-- **Vanilla JavaScript** - All functionality
+- **Vercel Serverless Functions** - API and auth endpoints
+- **Neon Postgres** - User accounts and saved history
 - **Ollama** - Ollama for question generation
 
 ## Flashcard JSON Format
@@ -101,7 +138,15 @@ You can import this JSON file to reload your flashcards.
 
 **PDF upload not working**: Some PDFs may require additional parsing libraries. Try copying text manually instead.
 
-**API errors**: Check your API key is valid and has usage quota remaining on openai.com
+**Ollama connection errors**:
+1. Confirm Ollama is running at `http://127.0.0.1:11434`
+2. Confirm your selected model is installed with `ollama list`
+3. If you changed the Ollama URL, update `VITE_OLLAMA_BASE_URL` in `.env`
+
+**Login or save errors**:
+1. Confirm `DATABASE_URL` is set for both local Vercel dev and Vercel production
+2. Start the API layer with `npm run dev:api`
+3. Make sure the frontend can reach `/api` through the Vite proxy or `VITE_API_BASE_URL`
 
 ## License
 Open source - feel free to modify and use!

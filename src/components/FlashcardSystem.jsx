@@ -2,12 +2,104 @@ import { useState, useCallback, useEffect } from 'react';
 import './FlashcardSystem.css';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 import workerSrc from 'pdfjs-dist/build/pdf.worker.mjs?url';
+import {
+    deleteSavedFlashcards,
+    deleteSavedTest,
+    getSavedFlashcards,
+    getSavedTest,
+    getSession,
+    listSavedFlashcards,
+    listSavedTests,
+    logIn,
+    logOut,
+    saveFlashcards,
+    saveTest,
+    signUp,
+} from '../lib/api.js';
 
 // Point pdf.js at the correct worker
 GlobalWorkerOptions.workerSrc = workerSrc;
 
 // Radio button options for flashcard count
 const FLASHCARD_OPTIONS = [2, 4, 6, 8, 10, 12];
+const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
+const OLLAMA_BASE_URL = (import.meta.env.VITE_OLLAMA_BASE_URL || DEFAULT_OLLAMA_BASE_URL).replace(/\/$/, '');
+const OLLAMA_MODEL = import.meta.env.VITE_OLLAMA_MODEL || 'mistral';
+const OLLAMA_TIMEOUT_MS = 90000;
+const MAX_SAVED_ITEMS = 10;
+
+const buildAutoTitle = (prefix, sourceText) => {
+    const normalizedSource = String(sourceText || '').trim().replace(/\s+/g, ' ');
+    const snippet = normalizedSource.slice(0, 40);
+
+    if (snippet) {
+        return `${prefix}: ${snippet}${normalizedSource.length > 40 ? '...' : ''}`;
+    }
+
+    return `${prefix} ${new Date().toLocaleString()}`;
+};
+
+const formatSavedDate = (value) => {
+    if (!value) {
+        return '';
+    }
+
+    return new Date(value).toLocaleString();
+};
+
+const extractJsonArray = (content) => {
+    const jsonMatch = content.match(/\[[\s\S]*\]/);
+
+    if (!jsonMatch) {
+        throw new Error('Invalid response format - could not extract JSON from Ollama response');
+    }
+
+    return JSON.parse(jsonMatch[0]);
+};
+
+const generateWithOllama = async (prompt) => {
+    let response;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), OLLAMA_TIMEOUT_MS);
+
+    try {
+        response = await fetch(`${OLLAMA_BASE_URL}/api/generate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            signal: controller.signal,
+            body: JSON.stringify({
+                model: OLLAMA_MODEL,
+                prompt,
+                stream: false,
+            }),
+        });
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            throw new Error(`Ollama took longer than ${Math.round(OLLAMA_TIMEOUT_MS / 1000)} seconds to respond.`);
+        }
+
+        throw new Error(`Could not reach Ollama at ${OLLAMA_BASE_URL}. Make sure Ollama is running and accessible from the browser.`);
+    } finally {
+        window.clearTimeout(timeoutId);
+    }
+
+    if (!response.ok) {
+        const errorText = (await response.text()).trim();
+        const detail = errorText ? `: ${errorText}` : '';
+        throw new Error(`Ollama request failed (${response.status} ${response.statusText})${detail}`);
+    }
+
+    const data = await response.json();
+    const content = data.response?.trim();
+
+    if (!content) {
+        throw new Error(`Ollama returned an empty response. Make sure the "${OLLAMA_MODEL}" model is installed.`);
+    }
+
+    return extractJsonArray(content);
+};
 
 
 const FlashcardSystem = () => {
@@ -21,6 +113,19 @@ const FlashcardSystem = () => {
     const [numCards, setNumCards] = useState(4);
     const [isGenerating, setIsGenerating] = useState(false);
     const [message, setMessage] = useState({ text: '', type: '' });
+    const [showSetup, setShowSetup] = useState(true);
+    const [user, setUser] = useState(null);
+    const [authMode, setAuthMode] = useState('login');
+    const [authForm, setAuthForm] = useState({ email: '', password: '' });
+    const [isAuthLoading, setIsAuthLoading] = useState(true);
+    const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
+    const [savedFlashcardSets, setSavedFlashcardSets] = useState([]);
+    const [savedTests, setSavedTests] = useState([]);
+    const [isLibraryLoading, setIsLibraryLoading] = useState(false);
+    const [isSavingFlashcards, setIsSavingFlashcards] = useState(false);
+    const [isSavingTest, setIsSavingTest] = useState(false);
+    const [activeFlashcardSaveId, setActiveFlashcardSaveId] = useState(null);
+    const [activeTestSaveId, setActiveTestSaveId] = useState(null);
 
     // Test state
     const [test, setTest] = useState([]);
@@ -30,7 +135,7 @@ const FlashcardSystem = () => {
     const [showReview, setShowReview] = useState(false);
 
     // Matching game state
-        const isTestComplete = test.length > 0 && Object.keys(selectedAnswers).length === test.length;
+    const isTestComplete = test.length > 0 && Object.keys(selectedAnswers).length === test.length;
     const [matchingTiles, setMatchingTiles] = useState([]);
     const [flippedTiles, setFlippedTiles] = useState([]);
     const [matchingScore, setMatchingScore] = useState(0);
@@ -41,10 +146,77 @@ const FlashcardSystem = () => {
     // Show message notification
     const showMessage = useCallback((text, type) => {
         setMessage({ text, type });
-        if (type !== 'error') {
+
+        if (typeof window !== 'undefined') {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        if (type === 'success') {
             setTimeout(() => setMessage({ text: '', type: '' }), 3000);
         }
     }, []);
+
+    const loadSavedLibrary = useCallback(async () => {
+        if (!user) {
+            setSavedFlashcardSets([]);
+            setSavedTests([]);
+            return;
+        }
+
+        setIsLibraryLoading(true);
+
+        try {
+            const [flashcardsResponse, testsResponse] = await Promise.all([
+                listSavedFlashcards(),
+                listSavedTests(),
+            ]);
+
+            setSavedFlashcardSets(flashcardsResponse.items || []);
+            setSavedTests(testsResponse.items || []);
+        } catch (error) {
+            showMessage(`Error loading saved items: ${error.message}`, 'error');
+        } finally {
+            setIsLibraryLoading(false);
+        }
+    }, [user, showMessage]);
+
+    useEffect(() => {
+        let isMounted = true;
+
+        const loadSession = async () => {
+            try {
+                const response = await getSession();
+
+                if (isMounted) {
+                    setUser(response.user || null);
+                }
+            } catch (error) {
+                if (isMounted) {
+                    showMessage(`Error loading account: ${error.message}`, 'error');
+                }
+            } finally {
+                if (isMounted) {
+                    setIsAuthLoading(false);
+                }
+            }
+        };
+
+        loadSession();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [showMessage]);
+
+    useEffect(() => {
+        if (!user) {
+            setSavedFlashcardSets([]);
+            setSavedTests([]);
+            return;
+        }
+
+        loadSavedLibrary();
+    }, [user, loadSavedLibrary]);
 
     // Handle PDF upload
     const handlePdfUpload = useCallback(async (event) => {
@@ -59,6 +231,42 @@ const FlashcardSystem = () => {
             showMessage(`Error reading PDF: ${error.message}`, 'error');
         }
     }, [showMessage]);
+
+    const handleAuthInputChange = (event) => {
+        const { name, value } = event.target;
+        setAuthForm((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleAuthSubmit = async (event) => {
+        event.preventDefault();
+        setIsAuthSubmitting(true);
+
+        try {
+            const action = authMode === 'signup' ? signUp : logIn;
+            const response = await action(authForm.email, authForm.password);
+            setUser(response.user);
+            setAuthForm({ email: '', password: '' });
+            showMessage(authMode === 'signup' ? 'Account created.' : 'Logged in.', 'success');
+        } catch (error) {
+            showMessage(`Error: ${error.message}`, 'error');
+        } finally {
+            setIsAuthSubmitting(false);
+        }
+    };
+
+    const handleLogout = async () => {
+        try {
+            await logOut();
+            setUser(null);
+            setSavedFlashcardSets([]);
+            setSavedTests([]);
+            setActiveFlashcardSaveId(null);
+            setActiveTestSaveId(null);
+            showMessage('Logged out.', 'success');
+        } catch (error) {
+            showMessage(`Error: ${error.message}`, 'error');
+        }
+    };
 
     // Extract text from PDF
     const extractTextFromPdf = async (file) => {
@@ -101,45 +309,27 @@ const FlashcardSystem = () => {
             Text to analyze:
             ${textToAnalyze.substring(0, 2000)}`;
 
-        setTimeout(async () => {
-            try {
-                // Call local Ollama API
-                const response = await fetch('https://senary-hydrothermally-susan.ngrok-free.dev',{
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                    model: 'mistral',
-                    prompt,
-                    stream: false,
-                })
-                });
-
-                const content = (response?.response || '').trim();
-
-                // Extract JSON from response
-                const jsonMatch = content.match(/\[[\s\S]*\]/);
-                if (!jsonMatch) {
-                    throw new Error('Invalid response format - could not extract JSON from Ollama response');
-                }
-
-                const parsedFlashcards = JSON.parse(jsonMatch[0]);
-                setFlashcards(parsedFlashcards);
-                setCurrentIndex(0);
-                setScore(0);
-                setTotalReviewed(0);
-                setIsFlipped(false);
-                setReviewMode(false);
-
-                showMessage(`Generated ${parsedFlashcards.length} flashcards!`, 'success');
-            } catch (error) {
-                console.error('Flashcard generation error:', error);
-                showMessage(`Error: ${error.message}`, 'error');
-            } finally {
-                setIsGenerating(false);
-            }
-        }, 10000);
+        try {
+            const parsedFlashcards = await generateWithOllama(prompt);
+            setFlashcards(parsedFlashcards);
+            setTest([]);
+            setSelectedAnswers({});
+            setShowReview(false);
+            setCurrentIndex(0);
+            setScore(0);
+            setTotalReviewed(0);
+            setIsFlipped(false);
+            setReviewMode(false);
+            setShowSetup(false);
+            setActiveFlashcardSaveId(null);
+            setActiveTestSaveId(null);
+            showMessage(`Generated ${parsedFlashcards.length} flashcards!`, 'success');
+        } catch (error) {
+            console.error('Flashcard generation error:', error);
+            showMessage(`Error: ${error.message}`, 'error');
+        } finally {
+            setIsGenerating(false);
+        }
     }, [pdfText, numCards, showMessage]);
 
     // Toggle flip
@@ -214,6 +404,12 @@ const FlashcardSystem = () => {
                 setTotalReviewed(0);
                 setIsFlipped(false);
                 setReviewMode(false);
+                setTest([]);
+                setSelectedAnswers({});
+                setShowReview(false);
+                setShowSetup(false);
+                setActiveFlashcardSaveId(null);
+                setActiveTestSaveId(null);
                 showMessage(`Imported ${imported.length} flashcards!`, 'success');
             } catch (error) {
                 showMessage(`Error importing flashcards: ${error.message}`, 'error');
@@ -250,7 +446,179 @@ const FlashcardSystem = () => {
         setSelectedAnswers({});
         setScore(0);
         setShowReview(false);
+        setShowSetup(true);
     }, []);
+
+    const handleReturnToSetup = useCallback(() => {
+        setShowMatchingGame(false);
+        setMatchingTiles([]);
+        setFlippedTiles([]);
+        setMatchingScore(0);
+        setMatchingGameWon(false);
+        setTest([]);
+        setCurrentQuestion(0);
+        setSelectedAnswers({});
+        setShowReview(false);
+        setScore(0);
+        setTotalReviewed(0);
+        setIsFlipped(false);
+        setReviewMode(false);
+        setCurrentIndex(0);
+        setShowSetup(true);
+    }, []);
+
+    const handleSaveCurrentFlashcards = async () => {
+        if (!user) {
+            showMessage('Log in to save flashcards.', 'error');
+            return;
+        }
+
+        if (flashcards.length === 0) {
+            showMessage('Generate or import flashcards first.', 'error');
+            return;
+        }
+
+        setIsSavingFlashcards(true);
+
+        try {
+            await saveFlashcards({
+                title: buildAutoTitle('Flashcards', pdfText),
+                sourceText: pdfText,
+                numCards: flashcards.length,
+                flashcards,
+            });
+            await loadSavedLibrary();
+            showMessage('Flashcards saved.', 'success');
+        } catch (error) {
+            showMessage(`Error: ${error.message}`, 'error');
+        } finally {
+            setIsSavingFlashcards(false);
+        }
+    };
+
+    const handleSaveCurrentTest = async () => {
+        if (!user) {
+            showMessage('Log in to save tests.', 'error');
+            return;
+        }
+
+        if (test.length === 0) {
+            showMessage('Generate a test first.', 'error');
+            return;
+        }
+
+        setIsSavingTest(true);
+
+        try {
+            await saveTest({
+                title: buildAutoTitle('Practice Test', pdfText),
+                sourceText: pdfText,
+                test,
+                selectedAnswers,
+                score,
+            });
+            await loadSavedLibrary();
+            showMessage('Test saved.', 'success');
+        } catch (error) {
+            showMessage(`Error: ${error.message}`, 'error');
+        } finally {
+            setIsSavingTest(false);
+        }
+    };
+
+    const handleLoadSavedFlashcardSet = async (id) => {
+        try {
+            const response = await getSavedFlashcards(id);
+            const item = response.item;
+
+            setFlashcards(item.flashcards || []);
+            setTest([]);
+            setCurrentQuestion(0);
+            setSelectedAnswers({});
+            setShowReview(false);
+            setCurrentIndex(0);
+            setScore(0);
+            setTotalReviewed(0);
+            setIsFlipped(false);
+            setReviewMode(false);
+            setPdfText(item.sourceText || '');
+            setNumCards(item.numCards || 4);
+            setShowMatchingGame(false);
+            setMatchingTiles([]);
+            setFlippedTiles([]);
+            setMatchingScore(0);
+            setMatchingGameWon(false);
+            setShowSetup(false);
+            setActiveFlashcardSaveId(item.id);
+            setActiveTestSaveId(null);
+            showMessage(`Loaded "${item.title}".`, 'success');
+        } catch (error) {
+            showMessage(`Error: ${error.message}`, 'error');
+        }
+    };
+
+    const handleDeleteSavedFlashcardSet = async (id) => {
+        if (!window.confirm('Delete this saved flashcard set?')) {
+            return;
+        }
+
+        try {
+            await deleteSavedFlashcards(id);
+            await loadSavedLibrary();
+
+            if (activeFlashcardSaveId === id) {
+                setActiveFlashcardSaveId(null);
+            }
+
+            showMessage('Saved flashcard set deleted.', 'success');
+        } catch (error) {
+            showMessage(`Error: ${error.message}`, 'error');
+        }
+    };
+
+    const handleLoadSavedTest = async (id) => {
+        try {
+            const response = await getSavedTest(id);
+            const item = response.item;
+
+            setTest(item.test || []);
+            setCurrentQuestion(0);
+            setSelectedAnswers(item.selectedAnswers || {});
+            setScore(item.score || 0);
+            setShowReview(false);
+            setPdfText(item.sourceText || '');
+            setShowMatchingGame(false);
+            setMatchingTiles([]);
+            setFlippedTiles([]);
+            setMatchingScore(0);
+            setMatchingGameWon(false);
+            setShowSetup(false);
+            setActiveFlashcardSaveId(null);
+            setActiveTestSaveId(item.id);
+            showMessage(`Loaded "${item.title}".`, 'success');
+        } catch (error) {
+            showMessage(`Error: ${error.message}`, 'error');
+        }
+    };
+
+    const handleDeleteSavedTest = async (id) => {
+        if (!window.confirm('Delete this saved test?')) {
+            return;
+        }
+
+        try {
+            await deleteSavedTest(id);
+            await loadSavedLibrary();
+
+            if (activeTestSaveId === id) {
+                setActiveTestSaveId(null);
+            }
+
+            showMessage('Saved test deleted.', 'success');
+        } catch (error) {
+            showMessage(`Error: ${error.message}`, 'error');
+        }
+    };
 
     // Start matching game
     const startMatchingGame = useCallback(() => {
@@ -291,6 +659,7 @@ const FlashcardSystem = () => {
         setMatchingScore(0);
         setMatchingGameWon(false);
         setShowMatchingGame(true);
+        setShowSetup(false);
     }, [flashcards, numCards, showMessage]);
 
     // Handle matching tile click
@@ -387,43 +756,27 @@ const FlashcardSystem = () => {
         Text to analyze:
         ${textToAnalyze.substring(0, 2000)}`;
 
-        setTimeout(async () => {
-            try {
-                const response = await fetch('https://senary-hydrothermally-susan.ngrok-free.dev',{
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                    model: 'mistral',
-                    prompt,
-                    stream: false,
-                })
-                });
-
-                console.log('Test Ollama response:', response);
-                const content = response.response.trim();
-
-                // Extract JSON from response
-                const jsonMatch = content.match(/\[[\s\S]*\]/);
-                if (!jsonMatch) {
-                    throw new Error('Invalid response format - could not extract JSON from Ollama response');
-                }
-
-                const parsedTest = JSON.parse(jsonMatch[0]);
-                setTest(parsedTest);
-                setCurrentQuestion(0);
-                setSelectedAnswers({});
-                setScore(0);
-
-                showMessage(`Generated test with ${parsedTest.length} questions!`, 'success');
-            } catch (error) {
-                console.error('Test generation error:', error);
-                showMessage(`Error: ${error.message}`, 'error');
-            } finally {
-                setIsCreatingTest(false);
-            }
-        }, 10000);
+        try {
+            const parsedTest = await generateWithOllama(prompt);
+            setTest(parsedTest);
+            setShowMatchingGame(false);
+            setMatchingTiles([]);
+            setFlippedTiles([]);
+            setMatchingScore(0);
+            setMatchingGameWon(false);
+            setCurrentQuestion(0);
+            setSelectedAnswers({});
+            setScore(0);
+            setShowSetup(false);
+            setActiveFlashcardSaveId(null);
+            setActiveTestSaveId(null);
+            showMessage(`Generated test with ${parsedTest.length} questions!`, 'success');
+        } catch (error) {
+            console.error('Test generation error:', error);
+            showMessage(`Error: ${error.message}`, 'error');
+        } finally {
+            setIsCreatingTest(false);
+        }
     }, [pdfText, showMessage]);
 
     return (
@@ -434,69 +787,7 @@ const FlashcardSystem = () => {
                 </div>
             )}
 
-            {test.length > 0 ? (
-                <div className="test-container">
-                    <div className="test-header">
-                        <h2>Practice Test</h2>
-                        <button className="exit-test-btn" onClick={handleClearTest}>← Back to Main</button>
-                    </div>
-                    <div className="question-section">
-                        <div className="question-count">Question {currentQuestion + 1}/{test.length}</div>
-                        <div className="question-text">{test[currentQuestion].question}</div>
-                    </div>
-                    <div className="answer-section">
-                        {test[currentQuestion].answers.map((answer, index) => (
-                            <button
-                                key={index}
-                                className={`answer-btn ${selectedAnswers[currentQuestion] === answer ? 'selected' : ''} ${selectedAnswers[currentQuestion] && answer === test[currentQuestion].correctAnswer ? 'correct' : ''}`}
-                                onClick={() => handleAnswerSelect(answer)}
-                                disabled={selectedAnswers[currentQuestion] !== undefined}
-                            >
-                                {answer}
-                            </button>
-                        ))}
-                    </div>
-                    <div className="test-results">Score: {score}/{test.length}</div>
-                    <div className="test-actions">
-                        {isTestComplete && (
-                            <>
-                                <button className="print-results-btn" onClick={() => window.print()}>🖨️ Print Results</button>
-                                <button className="review-results-btn" onClick={() => setShowReview(v => !v)}>
-                                    {showReview ? 'Hide Review' : 'Review Results'}
-                                </button>
-                                <button className="clear-test-btn" onClick={handleClearTest}>Take Another Test</button>
-                            </>
-                        )}
-                    </div>
-                </div>
-            ) : showMatchingGame ? (
-                <div className="matching-game-container">
-                    <div className="game-header">
-                        <h2>Matching Game</h2>
-                        <button className="exit-game-btn" onClick={handleExitMatchingGame}>← Back to Main</button>
-                    </div>
-                    <div className="score-display">Matches: {matchingScore}/{matchingTiles.length / 2}</div>
-                    <div className="tiles-grid">
-                        {matchingTiles.map(tile => (
-                            <div
-                                key={tile.id}
-                                className={`tile ${tile.type} ${tile.isFlipped || tile.isMatched ? 'flipped' : ''}`}
-                                onClick={() => handleMatchingTileClick(tile.id)}
-                            >
-                                <div className="tile-front">?</div>
-                                <div className="tile-back">{tile.content}</div>
-                            </div>
-                        ))}
-                    </div>
-                    {matchingGameWon && (
-                        <div className="game-over">
-                            <h3>You Win! 🎉</h3>
-                            <button className="reset-btn" onClick={startMatchingGame}>Play Again</button>
-                            <button className="exit-btn" onClick={handleExitMatchingGame}>Back to Flashcards</button>
-                        </div>
-                    )}
-                </div>
-            ) : (
+            {showSetup ? (
                 <div className="flashcard-setup">
                     <h1>Flashcard Memory Game</h1>
                     <p><strong>Directions:</strong> Upload a PDF or paste text to generate flashcards for your study session. Choose the number of flashcards and start learning. You can also play a matching game or create a practice test.</p>
@@ -530,10 +821,222 @@ const FlashcardSystem = () => {
                     <button className="generate-test" onClick={generateTest} disabled={isCreatingTest || !pdfText.trim()}>
                         {isCreatingTest ? 'Creating Test...' : 'Generate Test'}
                     </button>
-                </div>
-            )}
 
-            {flashcards.length > 0 && !test.length && !showMatchingGame && (
+                    {(isGenerating || isCreatingTest) && (
+                        <p className="ollama-status">
+                            Contacting Ollama at {OLLAMA_BASE_URL} using the {OLLAMA_MODEL} model...
+                        </p>
+                    )}
+
+                    <div className="account-panel">
+                        <div className="account-panel-header">
+                            <h2>Account & Saved Study Sets</h2>
+                            <p>Save up to {MAX_SAVED_ITEMS} tests and {MAX_SAVED_ITEMS} flashcard sets per account.</p>
+                        </div>
+
+                        {isAuthLoading ? (
+                            <p className="account-status">Loading account...</p>
+                        ) : user ? (
+                            <>
+                                <div className="account-summary">
+                                    <div>
+                                        <strong>{user.email}</strong>
+                                        <p className="account-status">Delete an older save before adding a new one when you reach the limit.</p>
+                                    </div>
+                                    <button className="auth-secondary-btn" onClick={handleLogout}>
+                                        Log Out
+                                    </button>
+                                </div>
+
+                                <div className="saved-library-grid">
+                                    <section className="saved-library-section">
+                                        <div className="saved-library-header">
+                                            <h3>Saved Flashcards</h3>
+                                            <span>{savedFlashcardSets.length}/{MAX_SAVED_ITEMS}</span>
+                                        </div>
+                                        {isLibraryLoading ? (
+                                            <p className="account-status">Loading flashcards...</p>
+                                        ) : savedFlashcardSets.length > 0 ? (
+                                            <div className="saved-library-list">
+                                                {savedFlashcardSets.map((item) => (
+                                                    <div
+                                                        key={item.id}
+                                                        className={`saved-library-item ${activeFlashcardSaveId === item.id ? 'active' : ''}`}
+                                                    >
+                                                        <div className="saved-library-copy">
+                                                            <strong>{item.title}</strong>
+                                                            <span>{item.numCards} cards</span>
+                                                            <span>{formatSavedDate(item.createdAt)}</span>
+                                                        </div>
+                                                        <div className="saved-library-actions">
+                                                            <button className="library-load-btn" onClick={() => handleLoadSavedFlashcardSet(item.id)}>
+                                                                Load
+                                                            </button>
+                                                            <button className="library-delete-btn" onClick={() => handleDeleteSavedFlashcardSet(item.id)}>
+                                                                Delete
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="account-status">No saved flashcard sets yet.</p>
+                                        )}
+                                    </section>
+
+                                    <section className="saved-library-section">
+                                        <div className="saved-library-header">
+                                            <h3>Saved Tests</h3>
+                                            <span>{savedTests.length}/{MAX_SAVED_ITEMS}</span>
+                                        </div>
+                                        {isLibraryLoading ? (
+                                            <p className="account-status">Loading tests...</p>
+                                        ) : savedTests.length > 0 ? (
+                                            <div className="saved-library-list">
+                                                {savedTests.map((item) => (
+                                                    <div
+                                                        key={item.id}
+                                                        className={`saved-library-item ${activeTestSaveId === item.id ? 'active' : ''}`}
+                                                    >
+                                                        <div className="saved-library-copy">
+                                                            <strong>{item.title}</strong>
+                                                            <span>Score: {item.score}</span>
+                                                            <span>{formatSavedDate(item.createdAt)}</span>
+                                                        </div>
+                                                        <div className="saved-library-actions">
+                                                            <button className="library-load-btn" onClick={() => handleLoadSavedTest(item.id)}>
+                                                                Load
+                                                            </button>
+                                                            <button className="library-delete-btn" onClick={() => handleDeleteSavedTest(item.id)}>
+                                                                Delete
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p className="account-status">No saved tests yet.</p>
+                                        )}
+                                    </section>
+                                </div>
+                            </>
+                        ) : (
+                            <form className="auth-form" onSubmit={handleAuthSubmit}>
+                                <div className="auth-mode-toggle">
+                                    <button
+                                        type="button"
+                                        className={`auth-mode-btn ${authMode === 'login' ? 'active' : ''}`}
+                                        onClick={() => setAuthMode('login')}
+                                    >
+                                        Log In
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={`auth-mode-btn ${authMode === 'signup' ? 'active' : ''}`}
+                                        onClick={() => setAuthMode('signup')}
+                                    >
+                                        Create Account
+                                    </button>
+                                </div>
+
+                                <label className="auth-label" htmlFor="auth-email">Email</label>
+                                <input
+                                    id="auth-email"
+                                    className="auth-input"
+                                    type="email"
+                                    name="email"
+                                    value={authForm.email}
+                                    onChange={handleAuthInputChange}
+                                    required
+                                />
+
+                                <label className="auth-label" htmlFor="auth-password">Password</label>
+                                <input
+                                    id="auth-password"
+                                    className="auth-input"
+                                    type="password"
+                                    name="password"
+                                    value={authForm.password}
+                                    onChange={handleAuthInputChange}
+                                    minLength={8}
+                                    required
+                                />
+
+                                <button className="auth-primary-btn" type="submit" disabled={isAuthSubmitting}>
+                                    {isAuthSubmitting
+                                        ? (authMode === 'signup' ? 'Creating Account...' : 'Logging In...')
+                                        : (authMode === 'signup' ? 'Create Account' : 'Log In')}
+                                </button>
+                            </form>
+                        )}
+                    </div>
+                </div>
+            ) : test.length > 0 ? (
+                <div className="test-container">
+                    <div className="test-header">
+                        <h2>Practice Test</h2>
+                        <button className="exit-test-btn" onClick={handleClearTest}>← Back to Uploader</button>
+                    </div>
+                    <div className="question-section">
+                        <div className="question-count">Question {currentQuestion + 1}/{test.length}</div>
+                        <div className="question-text">{test[currentQuestion].question}</div>
+                    </div>
+                    <div className="answer-section">
+                        {test[currentQuestion].answers.map((answer, index) => (
+                            <button
+                                key={index}
+                                className={`answer-btn ${selectedAnswers[currentQuestion] === answer ? 'selected' : ''} ${selectedAnswers[currentQuestion] && answer === test[currentQuestion].correctAnswer ? 'correct' : ''}`}
+                                onClick={() => handleAnswerSelect(answer)}
+                                disabled={selectedAnswers[currentQuestion] !== undefined}
+                            >
+                                {answer}
+                            </button>
+                        ))}
+                    </div>
+                    <div className="test-results">Score: {score}/{test.length}</div>
+                    <div className="test-actions">
+                        <button className="review-results-btn" onClick={handleSaveCurrentTest} disabled={isSavingTest}>
+                            {isSavingTest ? 'Saving...' : 'Save Test'}
+                        </button>
+                        {isTestComplete && (
+                            <>
+                                <button className="print-results-btn" onClick={() => window.print()}>🖨️ Print Results</button>
+                                <button className="review-results-btn" onClick={() => setShowReview(v => !v)}>
+                                    {showReview ? 'Hide Review' : 'Review Results'}
+                                </button>
+                                <button className="clear-test-btn" onClick={handleClearTest}>Take Another Test</button>
+                            </>
+                        )}
+                    </div>
+                </div>
+            ) : showMatchingGame ? (
+                <div className="matching-game-container">
+                    <div className="game-header">
+                        <h2>Matching Game</h2>
+                        <button className="exit-game-btn" onClick={handleExitMatchingGame}>← Back to Flashcards</button>
+                    </div>
+                    <div className="score-display">Matches: {matchingScore}/{matchingTiles.length / 2}</div>
+                    <div className="tiles-grid">
+                        {matchingTiles.map(tile => (
+                            <div
+                                key={tile.id}
+                                className={`tile ${tile.type} ${tile.isFlipped || tile.isMatched ? 'flipped' : ''}`}
+                                onClick={() => handleMatchingTileClick(tile.id)}
+                            >
+                                <div className="tile-front">?</div>
+                                <div className="tile-back">{tile.content}</div>
+                            </div>
+                        ))}
+                    </div>
+                    {matchingGameWon && (
+                        <div className="game-over">
+                            <h3>You Win! 🎉</h3>
+                            <button className="reset-btn" onClick={startMatchingGame}>Play Again</button>
+                            <button className="exit-btn" onClick={handleExitMatchingGame}>Back to Flashcards</button>
+                        </div>
+                    )}
+                </div>
+            ) : flashcards.length > 0 ? (
                 <div className="flashcard-container">
                     <div className="progress">{currentIndex + 1} / {flashcards.length}</div>
 
@@ -559,6 +1062,10 @@ const FlashcardSystem = () => {
                     )}
 
                     <div className="action-buttons">
+                        <button className="review-btn" onClick={handleReturnToSetup}>← Back to Uploader</button>
+                        <button className="review-btn" onClick={handleSaveCurrentFlashcards} disabled={isSavingFlashcards}>
+                            {isSavingFlashcards ? 'Saving...' : 'Save Flashcards'}
+                        </button>
                         <button className={`review-btn ${reviewMode ? 'active' : ''}`} onClick={toggleReviewMode}>
                             {reviewMode ? 'Exit Review Mode' : 'Start Review Mode'}
                         </button>
@@ -570,7 +1077,7 @@ const FlashcardSystem = () => {
                         </button>
                     </div>
                 </div>
-            )}
+            ) : null}
 
             {isTestComplete && (
                 <div className="print-area">

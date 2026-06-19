@@ -17,11 +17,14 @@
   "main": "eslint.config.js",
   "scripts": {
     "dev": "vite",
+    "dev:api": "npx vercel dev --listen 3000",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "bcryptjs": "^3.0.3",
     "dotenv": "^17.2.3",
     "ollama": "^0.6.3",
     "pdfjs-dist": "^5.4.530",
