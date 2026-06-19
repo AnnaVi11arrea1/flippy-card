@@ -3,6 +3,10 @@
 
 A Vite + React study app with Ollama-powered flashcards, practice tests, a matching-card game, and Neon/Vercel-backed user accounts with saved history.
 
+<img width="1036" height="838" alt="Screenshot 2026-01-08 203930" src="https://github.com/user-attachments/assets/3ded395d-ce56-421a-b3da-3a5e1bbc2de5" />
+
+
+
 ## Features
 
 ### 📚 AI Flashcard Generator
