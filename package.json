@@ -17,7 +17,7 @@
   "main": "eslint.config.js",
   "scripts": {
     "dev": "vite",
-    "dev:api": "npx vercel dev --listen 3000",
+    "dev:api": "node scripts/local-api.mjs",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"

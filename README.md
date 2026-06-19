@@ -52,7 +52,7 @@ ollama serve
 ```
 
 ### 3. Running the App Locally
-1. Start the Vercel API layer in one terminal:
+1. Start the local API layer in one terminal:
 
 ```bash
 npm run dev:api

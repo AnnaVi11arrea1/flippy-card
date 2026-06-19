@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { neon } from '@neondatabase/serverless';
 
 let sqlClient;

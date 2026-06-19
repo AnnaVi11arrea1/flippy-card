@@ -21,7 +21,7 @@ import {
 GlobalWorkerOptions.workerSrc = workerSrc;
 
 // Radio button options for flashcard count
-const FLASHCARD_OPTIONS = [2, 4, 6, 8, 10, 12];
+const FLASHCARD_OPTIONS = [5, 10, 15, 20, 30, 50];
 const DEFAULT_OLLAMA_BASE_URL = 'http://127.0.0.1:11434';
 const OLLAMA_BASE_URL = (import.meta.env.VITE_OLLAMA_BASE_URL || DEFAULT_OLLAMA_BASE_URL).replace(/\/$/, '');
 const OLLAMA_MODEL = import.meta.env.VITE_OLLAMA_MODEL || 'mistral';
@@ -55,6 +55,36 @@ const extractJsonArray = (content) => {
     }
 
     return JSON.parse(jsonMatch[0]);
+};
+
+const normalizeGeneratedTest = (items) => {
+    const normalizedItems = Array.isArray(items)
+        ? items
+            .map((item) => {
+                const question = String(item?.question || '').trim();
+                const answers = Array.isArray(item?.answers)
+                    ? item.answers.map((answer) => String(answer || '').trim()).filter(Boolean)
+                    : [];
+                const correctAnswer = String(item?.correctAnswer || '').trim();
+
+                if (!question || answers.length !== 4 || !correctAnswer) {
+                    return null;
+                }
+
+                return {
+                    question,
+                    answers,
+                    correctAnswer,
+                };
+            })
+            .filter(Boolean)
+        : [];
+
+    if (normalizedItems.length === 0) {
+        throw new Error('The generated test response was invalid. Please try again.');
+    }
+
+    return normalizedItems;
 };
 
 const generateWithOllama = async (prompt) => {
@@ -119,6 +149,7 @@ const FlashcardSystem = () => {
     const [authForm, setAuthForm] = useState({ email: '', password: '' });
     const [isAuthLoading, setIsAuthLoading] = useState(true);
     const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
+    const [accountNotice, setAccountNotice] = useState({ text: '', type: '' });
     const [savedFlashcardSets, setSavedFlashcardSets] = useState([]);
     const [savedTests, setSavedTests] = useState([]);
     const [isLibraryLoading, setIsLibraryLoading] = useState(false);
@@ -156,6 +187,10 @@ const FlashcardSystem = () => {
         }
     }, []);
 
+    const showAccountNotice = useCallback((text, type) => {
+        setAccountNotice({ text, type });
+    }, []);
+
     const loadSavedLibrary = useCallback(async () => {
         if (!user) {
             setSavedFlashcardSets([]);
@@ -173,12 +208,13 @@ const FlashcardSystem = () => {
 
             setSavedFlashcardSets(flashcardsResponse.items || []);
             setSavedTests(testsResponse.items || []);
+            setAccountNotice({ text: '', type: '' });
         } catch (error) {
-            showMessage(`Error loading saved items: ${error.message}`, 'error');
+            showAccountNotice(error.message, 'error');
         } finally {
             setIsLibraryLoading(false);
         }
-    }, [user, showMessage]);
+    }, [user, showAccountNotice]);
 
     useEffect(() => {
         let isMounted = true;
@@ -189,10 +225,11 @@ const FlashcardSystem = () => {
 
                 if (isMounted) {
                     setUser(response.user || null);
+                    setAccountNotice({ text: '', type: '' });
                 }
             } catch (error) {
                 if (isMounted) {
-                    showMessage(`Error loading account: ${error.message}`, 'error');
+                    showAccountNotice(error.message, 'error');
                 }
             } finally {
                 if (isMounted) {
@@ -206,7 +243,7 @@ const FlashcardSystem = () => {
         return () => {
             isMounted = false;
         };
-    }, [showMessage]);
+    }, [showAccountNotice]);
 
     useEffect(() => {
         if (!user) {
@@ -246,8 +283,10 @@ const FlashcardSystem = () => {
             const response = await action(authForm.email, authForm.password);
             setUser(response.user);
             setAuthForm({ email: '', password: '' });
+            showAccountNotice(authMode === 'signup' ? 'Account created.' : 'Logged in.', 'success');
             showMessage(authMode === 'signup' ? 'Account created.' : 'Logged in.', 'success');
         } catch (error) {
+            showAccountNotice(error.message, 'error');
             showMessage(`Error: ${error.message}`, 'error');
         } finally {
             setIsAuthSubmitting(false);
@@ -262,8 +301,10 @@ const FlashcardSystem = () => {
             setSavedTests([]);
             setActiveFlashcardSaveId(null);
             setActiveTestSaveId(null);
+            showAccountNotice('Logged out.', 'success');
             showMessage('Logged out.', 'success');
         } catch (error) {
+            showAccountNotice(error.message, 'error');
             showMessage(`Error: ${error.message}`, 'error');
         }
     };
@@ -296,7 +337,7 @@ const FlashcardSystem = () => {
         }
 
         setIsGenerating(true);
-        showMessage('Generating flashcards...', 'info');
+        showMessage('Generating...', 'info');
 
         const prompt = `You are an expert educator. Based on the following text, generate exactly ${numCards} flashcard questions and answers. 
         
@@ -731,6 +772,7 @@ const FlashcardSystem = () => {
     }, []);
 
     const currentFlashcard = flashcards[currentIndex];
+    const currentTestQuestion = test[currentQuestion];
     const percentage = totalReviewed > 0 ? Math.round((score / totalReviewed) * 100) : 0;
 
     // Generate practice test
@@ -743,7 +785,7 @@ const FlashcardSystem = () => {
         }
 
         setIsCreatingTest(true);
-        showMessage('Generating test...', 'info');
+        showMessage('Generating...', 'info');
 
         const prompt = `You are an expert educator. Based on the following text, generate exactly 10 multiple choice questions with exactly 4 possible answers each. Only one answer is correct.
         
@@ -757,7 +799,7 @@ const FlashcardSystem = () => {
         ${textToAnalyze.substring(0, 2000)}`;
 
         try {
-            const parsedTest = await generateWithOllama(prompt);
+            const parsedTest = normalizeGeneratedTest(await generateWithOllama(prompt));
             setTest(parsedTest);
             setShowMatchingGame(false);
             setMatchingTiles([]);
@@ -779,8 +821,46 @@ const FlashcardSystem = () => {
         }
     }, [pdfText, showMessage]);
 
+    const loadingMessage = isGenerating
+        ? 'Synthesizing flashcards from your source text...'
+        : isCreatingTest
+            ? 'Compiling a practice test from your study material...'
+            : isAuthLoading
+                ? 'Linking to your Neon identity vault...'
+                : isAuthSubmitting
+                    ? (authMode === 'signup'
+                        ? 'Provisioning your study account...'
+                        : 'Authenticating your access key...')
+                    : isLibraryLoading
+                        ? 'Syncing your saved study archive...'
+                        : isSavingFlashcards
+                            ? 'Saving your flashcard run to the archive...'
+                            : isSavingTest
+                                ? 'Saving your test results to the archive...'
+                                : '';
+    const showLoadingOverlay = Boolean(loadingMessage);
+
     return (
         <div className="flashcard-system">
+            {showLoadingOverlay && (
+                <div className="cyberpunk-loading-overlay" role="status" aria-live="polite" aria-busy="true">
+                    <div className="cyberpunk-grid" />
+                    <div className="cyberpunk-glow cyberpunk-glow-one" />
+                    <div className="cyberpunk-glow cyberpunk-glow-two" />
+                    <div className="cyberpunk-loading-card">
+                        <div className="cyberpunk-loading-kicker">SYSTEM ONLINE</div>
+                        <h2>Neon Pulse Active</h2>
+                        <p>{loadingMessage}</p>
+                        <div className="cyberpunk-loader" aria-hidden="true">
+                            <span />
+                            <span />
+                            <span />
+                        </div>
+                        <div className="cyberpunk-scanline" aria-hidden="true" />
+                    </div>
+                </div>
+            )}
+
             {message.text && (
                 <div className={`message ${message.type}`}>
                     {message.text}
@@ -789,7 +869,8 @@ const FlashcardSystem = () => {
 
             {showSetup ? (
                 <div className="flashcard-setup">
-                    <h1>Flashcard Memory Game</h1>
+                    <h1>Knowledge Builder</h1>
+                    <p>Enhance your knowledge of any topic!</p>
                     <p><strong>Directions:</strong> Upload a PDF or paste text to generate flashcards for your study session. Choose the number of flashcards and start learning. You can also play a matching game or create a practice test.</p>
 
                     <div className="input-group">
@@ -833,6 +914,12 @@ const FlashcardSystem = () => {
                             <h2>Account & Saved Study Sets</h2>
                             <p>Save up to {MAX_SAVED_ITEMS} tests and {MAX_SAVED_ITEMS} flashcard sets per account.</p>
                         </div>
+
+                        {accountNotice.text && (
+                            <div className={`account-notice ${accountNotice.type}`}>
+                                {accountNotice.text}
+                            </div>
+                        )}
 
                         {isAuthLoading ? (
                             <p className="account-status">Loading account...</p>
@@ -979,13 +1066,13 @@ const FlashcardSystem = () => {
                     </div>
                     <div className="question-section">
                         <div className="question-count">Question {currentQuestion + 1}/{test.length}</div>
-                        <div className="question-text">{test[currentQuestion].question}</div>
+                        <div className="question-text">{currentTestQuestion?.question}</div>
                     </div>
                     <div className="answer-section">
-                        {test[currentQuestion].answers.map((answer, index) => (
+                        {(currentTestQuestion?.answers || []).map((answer, index) => (
                             <button
                                 key={index}
-                                className={`answer-btn ${selectedAnswers[currentQuestion] === answer ? 'selected' : ''} ${selectedAnswers[currentQuestion] && answer === test[currentQuestion].correctAnswer ? 'correct' : ''}`}
+                                className={`answer-btn ${selectedAnswers[currentQuestion] === answer ? 'selected' : ''} ${selectedAnswers[currentQuestion] && answer === currentTestQuestion?.correctAnswer ? 'correct' : ''}`}
                                 onClick={() => handleAnswerSelect(answer)}
                                 disabled={selectedAnswers[currentQuestion] !== undefined}
                             >
